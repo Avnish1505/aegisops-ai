@@ -18,6 +18,11 @@ from aegisops.domain.models import (
     Scenario,
 )
 from aegisops.domain.policy import validate_llm_recommendation
+from aegisops.infrastructure.prompt_templates import (
+    DEFAULT_PROMPT_VERSION,
+    PromptTemplate,
+    get_prompt_template,
+)
 
 NIM_CHAT_COMPLETIONS_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 DEFAULT_NIM_MODEL = "meta/llama-3.1-8b-instruct"
@@ -35,11 +40,13 @@ class LLMDecisionEngine:
         api_key: str | None = None,
         client: httpx.Client | None = None,
         model: str | None = None,
+        prompt_version: str = DEFAULT_PROMPT_VERSION,
     ) -> None:
         self._retrieval_engine = retrieval_engine
         self._api_key = api_key or os.getenv("NVIDIA_API_KEY")
         self._client = client or httpx.Client(timeout=10.0)
         self._model = model or os.getenv("NVIDIA_NIM_MODEL", DEFAULT_NIM_MODEL)
+        self._prompt: PromptTemplate = get_prompt_template(prompt_version)
 
     def recommend(self, scenario: Scenario) -> DecisionResult:
         """Return a validated NIM result or block after one retry."""
@@ -95,12 +102,7 @@ class LLMDecisionEngine:
                 "messages": [
                     {
                         "role": "system",
-                        "content": (
-                            "Return JSON only. The JSON must validate as an AegisOps "
-                            "DecisionResult. It must require human approval and must never "
-                            "describe dispatch execution. Reference only supplied evidence IDs "
-                            "in DecisionResult.evidence_ids and Assignment.evidence_ids."
-                        ),
+                        "content": self._prompt.system_message,
                     },
                     {
                         "role": "user",
@@ -145,6 +147,8 @@ class LLMDecisionEngine:
             + ["Revalidated LLM assignments and safety state against the scenario."],
             evidence_ids=[item.id for item in evidence],
             evidence=evidence,
+            prompt_version=self._prompt.version,
+            model_version=self._model,
         )
 
     @staticmethod
@@ -192,4 +196,6 @@ class LLMDecisionEngine:
             ],
             evidence_ids=[item.id for item in evidence],
             evidence=evidence,
+            prompt_version=self._prompt.version,
+            model_version=self._model,
         )

@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from aegisops.domain.models import Evidence, Scenario
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
+from aegisops.infrastructure.prompt_templates import DEFAULT_PROMPT_VERSION, get_prompt_template
 
 
 class StubRetrievalEngine:
@@ -137,6 +138,10 @@ def test_llm_decision_engine_returns_valid_nim_json() -> None:
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers["Authorization"] == "Bearer test-key"
+        assert (
+            json.loads(request.content)["messages"][0]["content"]
+            == get_prompt_template().system_message
+        )
         return httpx.Response(
             200, json={"choices": [{"message": {"content": json.dumps(expected_result)}}]}
         )
@@ -151,6 +156,43 @@ def test_llm_decision_engine_returns_valid_nim_json() -> None:
     assert result.engine == "nvidia_nim_v1"
     assert result.assignments == []
     assert result.requires_human_approval is True
+    assert result.prompt_version == DEFAULT_PROMPT_VERSION
+    assert result.model_version == "meta/llama-3.1-8b-instruct"
+
+
+def test_llm_decision_engine_records_configured_model_and_prompt_versions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    scenario = Scenario.model_validate(
+        {
+            "scenario_id": "SCEN-versioning",
+            "incidents": [
+                {
+                    "id": "INC-1",
+                    "type": "medical",
+                    "severity": "low",
+                    "location": [0, 0],
+                    "people_affected": 1,
+                    "reported_at_min": 0,
+                    "resources_needed": {"ambulance": 1},
+                }
+            ],
+            "resources": [],
+        }
+    )
+    result = LLMDecisionEngine(
+        StubRetrievalEngine(), model="test-model-v2"
+    ).recommend(scenario)
+
+    assert result.status.value == "blocked"
+    assert result.prompt_version == DEFAULT_PROMPT_VERSION
+    assert result.model_version == "test-model-v2"
+
+
+def test_llm_decision_engine_rejects_unknown_prompt_version() -> None:
+    with pytest.raises(ValueError, match="Unknown prompt version"):
+        LLMDecisionEngine(StubRetrievalEngine(), prompt_version="nim-experiment-a")
 
 
 def test_llm_decision_engine_attaches_retrieval_provenance_to_assignments() -> None:
