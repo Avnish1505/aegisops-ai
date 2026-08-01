@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from aegisops.domain.models import DecisionResult, Scenario
+from aegisops.domain.models import DecisionResult, Evidence, Scenario
 
 
 class DecisionEngine(Protocol):
@@ -19,3 +19,10 @@ class RetrievalPort(Protocol):
 
     def retrieve(self, query: str) -> list[str]:
         """Return relevant knowledge snippets without executing an action."""
+
+
+class StructuredRetrievalPort(RetrievalPort, Protocol):
+    """Optional provenance-aware retrieval extension for newer adapters."""
+
+    def retrieve_evidence(self, query: str) -> list[Evidence]:
+        """Return relevant snippets as structured, attributable evidence."""

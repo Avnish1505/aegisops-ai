@@ -4,7 +4,7 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from aegisops.domain.models import Scenario
+from aegisops.domain.models import Evidence, Scenario
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 
 
@@ -23,6 +23,19 @@ class InjectionRetrievalEngine:
 
     def retrieve(self, query: str) -> list[str]:
         return [self._snippet]
+
+
+class StructuredStubRetrievalEngine(StubRetrievalEngine):
+    def retrieve_evidence(self, query: str) -> list[Evidence]:
+        self.query = query
+        return [
+            Evidence(
+                id="knowledge-human-approval",
+                description="Human approval is required before any action.",
+                source="human-approval.md",
+                confidence=0.9,
+            )
+        ]
 
 
 def _mock_engine(response_payload: dict[str, object]) -> LLMDecisionEngine:
@@ -138,6 +151,65 @@ def test_llm_decision_engine_returns_valid_nim_json() -> None:
     assert result.engine == "nvidia_nim_v1"
     assert result.assignments == []
     assert result.requires_human_approval is True
+
+
+def test_llm_decision_engine_attaches_retrieval_provenance_to_assignments() -> None:
+    retrieval_engine = StructuredStubRetrievalEngine()
+    scenario = Scenario.model_validate(
+        {
+            "scenario_id": "SCEN-provenance",
+            "incidents": [
+                {
+                    "id": "INC-1",
+                    "type": "medical",
+                    "severity": "low",
+                    "location": [0, 0],
+                    "people_affected": 1,
+                    "reported_at_min": 0,
+                    "resources_needed": {"ambulance": 1},
+                }
+            ],
+            "resources": [
+                {"id": "RES-1", "type": "ambulance", "location": [0, 0]},
+            ],
+        }
+    )
+    raw_result = {
+        "scenario_id": "SCEN-provenance",
+        "engine": "nvidia_nim_v1",
+        "status": "requires_human_approval",
+        "assignments": [
+            {
+                "incident_id": "INC-1",
+                "resource_id": "RES-1",
+                "resource_type": "ambulance",
+                "travel_minutes": 0,
+                "evidence_ids": ["unknown-evidence"],
+            }
+        ],
+        "unmet_requirements": [],
+        "safety_findings": [],
+        "advisory_confidence": 1.0,
+        "decision_trace": ["Used approval guidance."],
+        "evidence_ids": ["unknown-evidence"],
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        prompt = json.loads(request.content)["messages"][1]["content"]
+        assert json.loads(prompt)["evidence"][0]["id"] == "knowledge-human-approval"
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": json.dumps(raw_result)}}]}
+        )
+
+    result = LLMDecisionEngine(
+        retrieval_engine,
+        api_key="test-key",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    ).recommend(scenario)
+
+    assert result.evidence_ids == ["knowledge-human-approval"]
+    assert result.evidence[0].source == "human-approval.md"
+    assert result.assignments[0].evidence_ids == ["knowledge-human-approval"]
 
 
 def test_llm_decision_engine_retries_once_then_blocks() -> None:

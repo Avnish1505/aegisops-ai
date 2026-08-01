@@ -127,6 +127,7 @@ def test_decision_result_evidence_ids_default():
         decision_trace=["step1", "step2"],
     )
     assert decision.evidence_ids == []
+    assert decision.evidence == []
 
 
 def test_decision_result_evidence_ids_can_be_set():
@@ -149,6 +150,17 @@ def test_decision_result_evidence_ids_can_be_set():
         evidence_ids=["ev1", "ev2"],
     )
     assert decision.evidence_ids == ["ev1", "ev2"]
+
+
+def test_assignment_evidence_ids_default_for_compatibility():
+    assignment = Assignment(
+        incident_id="inc1",
+        resource_id="res1",
+        resource_type=ResourceType.AMBULANCE,
+        travel_minutes=5.0,
+    )
+
+    assert assignment.evidence_ids == []
 
 
 # Existing model tests to ensure we didn't break anything

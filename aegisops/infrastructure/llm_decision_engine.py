@@ -9,7 +9,14 @@ import httpx
 from pydantic import ValidationError
 
 from aegisops.application.ports import RetrievalPort
-from aegisops.domain.models import DecisionResult, DecisionStatus, SafetyFinding, Scenario
+from aegisops.domain.models import (
+    Assignment,
+    DecisionResult,
+    DecisionStatus,
+    Evidence,
+    SafetyFinding,
+    Scenario,
+)
 from aegisops.domain.policy import validate_llm_recommendation
 
 NIM_CHAT_COMPLETIONS_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
@@ -40,22 +47,41 @@ class LLMDecisionEngine:
             f"{incident.severity} {incident.type}"
             for incident in scenario.incidents
         )
-        snippets = self._retrieval_engine.retrieve(query)
+        snippets, evidence = self._retrieve_with_provenance(query)
         if not self._api_key:
             return self._blocked_result(
-                scenario, len(snippets), "NVIDIA API credentials are unavailable."
+                scenario, evidence, "NVIDIA API credentials are unavailable."
             )
 
         for _ in range(2):
             try:
-                return self._request_decision(scenario, snippets)
+                return self._request_decision(scenario, snippets, evidence)
             except (httpx.HTTPError, KeyError, TypeError, ValueError, ValidationError):
                 continue
         return self._blocked_result(
-            scenario, len(snippets), "NVIDIA NIM response validation failed."
+            scenario, evidence, "NVIDIA NIM response validation failed."
         )
 
-    def _request_decision(self, scenario: Scenario, snippets: list[str]) -> DecisionResult:
+    def _retrieve_with_provenance(self, query: str) -> tuple[list[str], list[Evidence]]:
+        """Use structured retrieval when available, retaining legacy port compatibility."""
+        retrieve_evidence = getattr(self._retrieval_engine, "retrieve_evidence", None)
+        if callable(retrieve_evidence):
+            evidence = retrieve_evidence(query)
+            return [item.description for item in evidence], evidence
+        snippets = self._retrieval_engine.retrieve(query)
+        return snippets, [
+            Evidence(
+                id=f"retrieved-{index}",
+                description=snippet,
+                source="legacy_retrieval",
+                confidence=1.0,
+            )
+            for index, snippet in enumerate(snippets, start=1)
+        ]
+
+    def _request_decision(
+        self, scenario: Scenario, snippets: list[str], evidence: list[Evidence]
+    ) -> DecisionResult:
         response = self._client.post(
             NIM_CHAT_COMPLETIONS_URL,
             headers={
@@ -72,7 +98,8 @@ class LLMDecisionEngine:
                         "content": (
                             "Return JSON only. The JSON must validate as an AegisOps "
                             "DecisionResult. It must require human approval and must never "
-                            "describe dispatch execution."
+                            "describe dispatch execution. Reference only supplied evidence IDs "
+                            "in DecisionResult.evidence_ids and Assignment.evidence_ids."
                         ),
                     },
                     {
@@ -81,6 +108,7 @@ class LLMDecisionEngine:
                             {
                                 "scenario": scenario.model_dump(mode="json"),
                                 "knowledge_snippets": snippets,
+                                "evidence": [item.model_dump(mode="json") for item in evidence],
                             }
                         ),
                     },
@@ -95,6 +123,7 @@ class LLMDecisionEngine:
         assignments, unmet, findings, blocked = validate_llm_recommendation(
             result.assignments, result.requires_human_approval, scenario
         )
+        assignments = self._map_assignment_evidence(assignments, evidence)
         coverage = 1 - (
             sum(item.quantity for item in unmet)
             / max(1, len(assignments) + sum(item.quantity for item in unmet))
@@ -114,11 +143,33 @@ class LLMDecisionEngine:
             advisory_confidence=round(max(0.0, min(1.0, coverage)), 2),
             decision_trace=result.decision_trace
             + ["Revalidated LLM assignments and safety state against the scenario."],
-            evidence_ids=result.evidence_ids,
+            evidence_ids=[item.id for item in evidence],
+            evidence=evidence,
         )
 
+    @staticmethod
+    def _map_assignment_evidence(
+        assignments: list[Assignment], evidence: list[Evidence]
+    ) -> list[Assignment]:
+        """Retain valid model citations, with all retrieved evidence as a legacy fallback."""
+        available_ids = {item.id for item in evidence}
+        fallback_ids = [item.id for item in evidence]
+        return [
+            assignment.model_copy(
+                update={
+                    "evidence_ids": [
+                        evidence_id
+                        for evidence_id in assignment.evidence_ids
+                        if evidence_id in available_ids
+                    ]
+                    or fallback_ids
+                }
+            )
+            for assignment in assignments
+        ]
+
     def _blocked_result(
-        self, scenario: Scenario, snippet_count: int, reason: str
+        self, scenario: Scenario, evidence: list[Evidence], reason: str
     ) -> DecisionResult:
         return DecisionResult(
             scenario_id=scenario.scenario_id,
@@ -135,8 +186,10 @@ class LLMDecisionEngine:
             ],
             advisory_confidence=0.0,
             decision_trace=[
-                f"Retrieved {snippet_count} local knowledge snippets.",
+                f"Retrieved {len(evidence)} local knowledge snippets.",
                 reason,
                 "No decision was produced; recommendation is blocked pending human review.",
             ],
+            evidence_ids=[item.id for item in evidence],
+            evidence=evidence,
         )

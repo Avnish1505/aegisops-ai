@@ -92,6 +92,7 @@ class Assignment(DomainModel):
     resource_id: str
     resource_type: ResourceType
     travel_minutes: Annotated[float, Field(ge=0)]
+    evidence_ids: list[str] = Field(default_factory=list)
 
 
 class UnmetRequirement(DomainModel):
@@ -153,6 +154,7 @@ class DecisionResult(DomainModel):
     advisory_confidence: Annotated[float, Field(ge=0, le=1)]
     decision_trace: list[str]
     evidence_ids: list[str] = Field(default_factory=list)
+    evidence: list[Evidence] = Field(default_factory=list)
     # Approval workflow fields
     approval_status: ApprovalStatus = ApprovalStatus.PENDING
     approver_id: str | None = None
