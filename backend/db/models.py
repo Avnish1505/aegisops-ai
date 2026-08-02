@@ -121,7 +121,7 @@ class Decision(Base):
     status: Mapped[str] = mapped_column(String(50))
     requires_human_approval: Mapped[bool] = mapped_column(Boolean, default=True)
     advisory_confidence: Mapped[float] = mapped_column(nullable=False)
-    decision_trace: Mapped[list[dict]] = mapped_column(JSON)
+    decision_trace: Mapped[list[dict[str, object]]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Indexes
