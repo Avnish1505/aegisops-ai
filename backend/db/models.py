@@ -159,7 +159,7 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     table_name: Mapped[str] = mapped_column(String(50), nullable=False)
     record_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    change_data: Mapped[dict | None] = mapped_column(JSON)
+    change_data: Mapped[dict[str, object] | None] = mapped_column(JSON)
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships
