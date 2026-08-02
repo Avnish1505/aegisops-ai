@@ -11,22 +11,4 @@ class UserRole(IntEnum):
     COMMANDER = 3
     ADMIN = 4
 
-    def __ge__(self, other: "UserRole") -> bool:
-        if isinstance(other, UserRole):
-            return self.value >= other.value
-        return NotImplemented
-
-    def __gt__(self, other: "UserRole") -> bool:
-        if isinstance(other, UserRole):
-            return self.value > other.value
-        return NotImplemented
-
-    def __le__(self, other: "UserRole") -> bool:
-        if isinstance(other, UserRole):
-            return self.value <= other.value
-        return NotImplemented
-
-    def __lt__(self, other: "UserRole") -> bool:
-        if isinstance(other, UserRole):
-            return self.value < other.value
-        return NotImplemented
+    
