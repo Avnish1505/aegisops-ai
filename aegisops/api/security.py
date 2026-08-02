@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
@@ -24,24 +25,17 @@ def get_current_user_role(
     In test environment, if no token provided, defaults to OPERATOR to allow tests to pass.
     """
     if not credentials:
-        # Get settings from app state
         settings = request.app.state.settings
         if getattr(settings, "environment", None) == "test":
-            # In test, allow unauthenticated operator access for existing API tests.
             return UserRole.OPERATOR
-        # For development, allow unauthenticated access as viewer
-        # In production, this should be replaced with proper JWT validation
         return UserRole.VIEWER
 
     token = credentials.credentials
     try:
-        # Extract role from token (format: "role:<role_name>" or just "<role_name>")
         if token.startswith("role:"):
             role_name = token.split(":", 1)[1].lower()
         else:
             role_name = token.lower()
-
-        # Convert string to UserRole enum
         return UserRole[role_name.upper()]
     except KeyError as error:
         raise HTTPException(
@@ -51,7 +45,7 @@ def get_current_user_role(
         ) from error
 
 
-def require_role(minimum_role: UserRole):
+def require_role(minimum_role: UserRole) -> Callable[[UserRole], UserRole]:
     """
     Dependency factory that requires a minimum role level.
     Returns a dependency that checks if the current user has at least the required role.
@@ -70,7 +64,6 @@ def require_role(minimum_role: UserRole):
     return role_checker
 
 
-# Convenience dependencies for common role requirements
 require_viewer = require_role(UserRole.VIEWER)
 require_operator = require_role(UserRole.OPERATOR)
 require_commander = require_role(UserRole.COMMANDER)
