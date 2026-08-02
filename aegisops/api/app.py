@@ -7,7 +7,7 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Protocol, cast
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
@@ -28,12 +28,17 @@ from aegisops.application.roles import UserRole
 from aegisops.application.scenario_service import generate_scenario
 from aegisops.core.config import Settings
 from aegisops.core.logging import configure_logging
+from aegisops.domain.models import DecisionRecommendation, Scenario
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 from aegisops.infrastructure.retrieval_engine import RetrievalEngine
 from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
 from backend.db.models import Approval, AuditLog, Base, Decision, User
 
 logger = logging.getLogger(__name__)
+
+
+class DecisionEngine(Protocol):
+    def recommend(self, scenario: Scenario) -> DecisionRecommendation: ...
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -67,7 +72,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
     )
 
-    # Store settings in app state for access in dependencies
     app.state.settings = active_settings
     app.state.session_factory = session_factory
 
@@ -115,7 +119,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ).model_dump(),
         )
 
-    engines = {
+    engines: dict[str, DecisionEngine] = {
         "rule_based": RuleBasedDecisionEngine(),
         "llm_rag": LLMDecisionEngine(
             RetrievalEngine(Path(__file__).parents[2] / "knowledge")
@@ -132,21 +136,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/v1/scenarios", tags=["scenarios"])
     async def get_scenario(seed: int | None = None) -> dict[str, object]:
-        """Generate bounded synthetic data; a seed makes output reproducible."""
-        return generate_scenario(seed=seed).model_dump(mode="json")
+        return cast(dict[str, object], generate_scenario(seed=seed).model_dump(mode="json"))
 
-    @app.post(
-        "/api/v1/decisions",
-        tags=["decisions"],
-    )
+    @app.post("/api/v1/decisions", tags=["decisions"])
     async def create_decision(
         request: ScenarioDecisionRequest,
         role: Annotated[UserRole, Depends(require_operator)],
         engine: Literal["rule_based", "llm_rag"] = "rule_based",
     ) -> dict[str, object]:
-        """Return advisory, safety-gated recommendation; no external side effect occurs."""
-        scenario = request.scenario or generate_scenario(seed=request.seed)
-        result = engines[engine].recommend(scenario)
+        scenario: Scenario = request.scenario or generate_scenario(seed=request.seed)
+        result: DecisionRecommendation = engines[engine].recommend(scenario)
+
         with session_factory.begin() as session:
             decision = Decision(
                 scenario_id=result.scenario_id,
@@ -167,7 +167,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     change_data={"actor": role.name.lower(), "scenario_id": result.scenario_id},
                 )
             )
-            response = result.model_dump(mode="json")
+            response = cast(dict[str, object], result.model_dump(mode="json"))
             response["decision_id"] = decision.id
         return response
 
@@ -177,7 +177,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request: DecisionDispositionRequest,
         role: Annotated[UserRole, Depends(require_operator)],
     ) -> dict[str, object]:
-        """Persist an operator disposition and its durable audit record."""
         with session_factory.begin() as session:
             decision = session.get(Decision, decision_id)
             if decision is None:
@@ -229,27 +228,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "timestamp": audit.timestamp.isoformat(),
             }
 
-    # Compatibility aliases preserve the prototype's demo contract while clients migrate.
     @app.get("/health", include_in_schema=False)
     async def legacy_health() -> dict[str, str]:
         return {"status": "ok"}
 
     @app.get("/scenario", include_in_schema=False)
     async def legacy_scenario(seed: int | None = None) -> dict[str, object]:
-        return generate_scenario(seed=seed).model_dump(mode="json")
+        return cast(dict[str, object], generate_scenario(seed=seed).model_dump(mode="json"))
 
-    @app.post(
-        "/simulate",
-        include_in_schema=False,
-    )
+    @app.post("/simulate", include_in_schema=False)
     async def legacy_simulate(
         request: ScenarioDecisionRequest,
         role: Annotated[UserRole, Depends(require_operator)],
         engine: Literal["rule_based", "llm_rag"] = "rule_based",
     ) -> dict[str, object]:
-        scenario = request.scenario or generate_scenario(seed=request.seed)
+        scenario: Scenario = request.scenario or generate_scenario(seed=request.seed)
         del role
-        return engines[engine].recommend(scenario).model_dump(mode="json")
+        result: DecisionRecommendation = engines[engine].recommend(scenario)
+        return cast(dict[str, object], result.model_dump(mode="json"))
 
     return app
 
