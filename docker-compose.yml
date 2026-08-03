@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - AEGISOPS_ENVIRONMENT=development
+      - AEGISOPS_DEBUG=true
+      - AEGISOPS_CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - RATE_LIMIT=100/minute
+    volumes:
+      - .:/app:cached
+      - /app/data  # Ensure the data directory is mounted as a volume for persistence
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Optional: Add a service for the frontend if needed
+  # frontend:
+  #   build: ./frontend
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - REACT_APP_API_URL=http://localhost:8000
