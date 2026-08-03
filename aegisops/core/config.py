@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AnyHttpUrl
+from pydantic import AnyHttpUrl, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,33 +23,19 @@ class Settings(BaseSettings):
         "http://localhost:5173",
     ]
 
-    secret_key: str = "CHANGE_ME_TO_A_COMPLEX_SECRET"
+    secret_key: str = Field(default="CHANGE_ME_TO_A_COMPLEX_SECRET", env="SECRET_KEY")
     access_token_expire_minutes: int = 60 * 24 * 8
     algorithm: str = "HS256"
 
     database_url: str = "sqlite:///./aegisops.db"
     knowledge_base_path: Path = Path(__file__).parent.parent / "knowledge"
-
-    model_config = SettingsConfigDict(
-        case_sensitive=True,
-        env_file=".env",
-        env_file_encoding="utf-8",
-        env_prefix="",
-    )
-
-    # Knowledge base
-    knowledge_base_path: Path = Path(__file__).parent.parent / "knowledge"
+    rate_limit: str = "100/minute"
 
     model_config = SettingsConfigDict(
         case_sensitive=True,
         env_file=".env",
         env_file_encoding="utf-8",
     )
-
-    @classmethod
-    def from_environment(cls) -> Settings:
-        """Create settings instance from environment variables."""
-        return cls()
 
 
 @lru_cache

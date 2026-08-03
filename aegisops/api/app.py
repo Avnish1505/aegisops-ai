@@ -75,6 +75,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = active_settings
     app.state.session_factory = session_factory
 
+    # Rate limiting setup
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+
+    limiter = Limiter(key_func=get_remote_address, default_limits=[])
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
     @app.middleware("http")
     async def security_and_observability_headers(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
@@ -127,24 +136,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     }
 
     @app.get("/health/live", tags=["health"])
-    async def liveness() -> dict[str, str]:
+    @limiter.limit(active_settings.rate_limit)
+    async def liveness(request: Request) -> dict[str, str]:
         return {"status": "ok"}
 
     @app.get("/health/ready", tags=["health"])
-    async def readiness() -> dict[str, str]:
+    @limiter.limit(active_settings.rate_limit)
+    async def readiness(request: Request) -> dict[str, str]:
         return {"status": "ready", "environment": active_settings.environment}
 
     @app.get("/api/v1/scenarios", tags=["scenarios"])
-    async def get_scenario(seed: int | None = None) -> dict[str, object]:
+    @limiter.limit(active_settings.rate_limit)
+    async def get_scenario(request: Request, seed: int | None = None) -> dict[str, object]:
         return cast(dict[str, object], generate_scenario(seed=seed).model_dump(mode="json"))
 
     @app.post("/api/v1/decisions", tags=["decisions"])
     async def create_decision(
-        request: ScenarioDecisionRequest,
+        request: Request,
+        request_body: ScenarioDecisionRequest,
         role: Annotated[UserRole, Depends(require_operator)],
         engine: Literal["rule_based", "llm_rag"] = "rule_based",
     ) -> dict[str, object]:
-        scenario: Scenario = request.scenario or generate_scenario(seed=request.seed)
+        scenario: Scenario = (
+            request_body.scenario or generate_scenario(seed=request_body.seed)
+        )
         result: DecisionResult = engines[engine].recommend(scenario)
 
         with session_factory.begin() as session:
@@ -173,8 +188,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/v1/decisions/{decision_id}/disposition", tags=["decisions"])
     async def create_disposition(
+        request: Request,
         decision_id: int,
-        request: DecisionDispositionRequest,
+        request_body: DecisionDispositionRequest,
         role: Annotated[UserRole, Depends(require_operator)],
     ) -> dict[str, object]:
         with session_factory.begin() as session:
@@ -184,7 +200,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Decision not found.",
                 )
-            if request.action == "approve" and decision.status == "blocked":
+            if request_body.action == "approve" and decision.status == "blocked":
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Blocked decisions cannot be approved.",
@@ -202,21 +218,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             approval = Approval(
                 decision_id=decision.id,
                 user_id=actor.id,
-                approved=request.action == "approve",
+                approved=request_body.action == "approve",
             )
             session.add(approval)
             session.flush()
             audit = AuditLog(
                 user_id=actor.id,
                 action=(
-                    "decision_approved" if request.action == "approve" else "decision_rejected"
+                    "decision_approved" if request_body.action == "approve" else "decision_rejected"
                 ),
                 table_name="decisions",
                 record_id=str(decision.id),
                 change_data={
                     "actor": role.name.lower(),
-                    "action": request.action,
-                    "reason": request.reason,
+                    "action": request_body.action,
+                    "reason": request_body.reason,
                 },
             )
             session.add(audit)
@@ -224,25 +240,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return {
                 "decision_id": decision.id,
                 "disposition_id": approval.id,
-                "action": request.action,
+                "action": request_body.action,
                 "timestamp": audit.timestamp.isoformat(),
             }
 
     @app.get("/health", include_in_schema=False)
-    async def legacy_health() -> dict[str, str]:
+    @limiter.limit(active_settings.rate_limit)
+    async def legacy_health(request: Request) -> dict[str, str]:
         return {"status": "ok"}
 
     @app.get("/scenario", include_in_schema=False)
-    async def legacy_scenario(seed: int | None = None) -> dict[str, object]:
+    @limiter.limit(active_settings.rate_limit)
+    async def legacy_scenario(request: Request, seed: int | None = None) -> dict[str, object]:
         return cast(dict[str, object], generate_scenario(seed=seed).model_dump(mode="json"))
 
     @app.post("/simulate", include_in_schema=False)
     async def legacy_simulate(
-        request: ScenarioDecisionRequest,
+        request: Request,
+        request_body: ScenarioDecisionRequest,
         role: Annotated[UserRole, Depends(require_operator)],
         engine: Literal["rule_based", "llm_rag"] = "rule_based",
     ) -> dict[str, object]:
-        scenario: Scenario = request.scenario or generate_scenario(seed=request.seed)
+        scenario: Scenario = (
+            request_body.scenario or generate_scenario(seed=request_body.seed)
+        )
         del role
         result: DecisionResult = engines[engine].recommend(scenario)
         return cast(dict[str, object], result.model_dump(mode="json"))
