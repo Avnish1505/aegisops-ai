@@ -28,7 +28,7 @@ from aegisops.application.roles import UserRole
 from aegisops.application.scenario_service import generate_scenario
 from aegisops.core.config import Settings
 from aegisops.core.logging import configure_logging
-from aegisops.domain.models import DecisionRecommendation, Scenario
+from aegisops.domain.models import DecisionResult, Scenario
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 from aegisops.infrastructure.retrieval_engine import RetrievalEngine
 from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 class DecisionEngine(Protocol):
-    def recommend(self, scenario: Scenario) -> DecisionRecommendation: ...
+    def recommend(self, scenario: Scenario) -> DecisionResult: ...
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -145,7 +145,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         engine: Literal["rule_based", "llm_rag"] = "rule_based",
     ) -> dict[str, object]:
         scenario: Scenario = request.scenario or generate_scenario(seed=request.seed)
-        result: DecisionRecommendation = engines[engine].recommend(scenario)
+        result: DecisionResult = engines[engine].recommend(scenario)
 
         with session_factory.begin() as session:
             decision = Decision(
@@ -244,7 +244,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> dict[str, object]:
         scenario: Scenario = request.scenario or generate_scenario(seed=request.seed)
         del role
-        result: DecisionRecommendation = engines[engine].recommend(scenario)
+        result: DecisionResult = engines[engine].recommend(scenario)
         return cast(dict[str, object], result.model_dump(mode="json"))
 
     return app
