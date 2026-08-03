@@ -13,6 +13,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -27,7 +28,7 @@ from aegisops.api.security import require_operator
 from aegisops.application.roles import UserRole
 from aegisops.application.scenario_service import generate_scenario
 from aegisops.core.config import Settings
-from aegisops.core.logging import configure_logging
+from aegisops.core.logging import configure_logging, request_id_var
 from aegisops.domain.models import DecisionResult, Scenario
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 from aegisops.infrastructure.retrieval_engine import RetrievalEngine
@@ -89,21 +90,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
-        started = time.perf_counter()
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["Cache-Control"] = "no-store"
-        logger.info(
-            "request_completed request_id=%s method=%s path=%s status=%s duration_ms=%.2f",
-            request_id,
-            request.method,
-            request.url.path,
-            response.status_code,
-            (time.perf_counter() - started) * 1000,
-        )
-        return response
+        token = request_id_var.set(request_id)
+        try:
+            started = time.perf_counter()
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = request_id
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["Referrer-Policy"] = "no-referrer"
+            response.headers["Cache-Control"] = "no-store"
+            logger.info(
+                "request_completed request_id=%s method=%s path=%s status=%s duration_ms=%.2f",
+                request_id,
+                request.method,
+                request.url.path,
+                response.status_code,
+                (time.perf_counter() - started) * 1000,
+            )
+            return response
+        finally:
+            request_id_var.reset(token)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(
@@ -144,6 +149,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @limiter.limit(active_settings.rate_limit)
     async def readiness(request: Request) -> dict[str, str]:
         return {"status": "ready", "environment": active_settings.environment}
+
+    @app.get("/metrics", include_in_schema=False)
+    @limiter.limit(active_settings.rate_limit)
+    async def metrics(request: Request) -> Response:
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     @app.get("/api/v1/scenarios", tags=["scenarios"])
     @limiter.limit(active_settings.rate_limit)
