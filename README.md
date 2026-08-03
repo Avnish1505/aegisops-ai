@@ -77,6 +77,7 @@ and cannot bypass validation, safety policy, evaluation, or human approval.
 - [User Manual](docs/USER_MANUAL.md)
 - [Incident Response Runbook](docs/INCIDENT_RESPONSE_RUNBOOK.md)
 - [Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
+- [Research Proposal](docs/RESEARCH_PROPOSAL.md)
 
 ## Delivery
 
