@@ -78,6 +78,7 @@ and cannot bypass validation, safety policy, evaluation, or human approval.
 - [Incident Response Runbook](docs/INCIDENT_RESPONSE_RUNBOOK.md)
 - [Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
 - [Research Proposal](docs/RESEARCH_PROPOSAL.md)
+- [IEEE-Style Paper Draft](docs/IEEE_PAPER_DRAFT.md)
 
 ## Delivery
 
