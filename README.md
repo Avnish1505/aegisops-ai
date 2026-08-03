@@ -75,6 +75,7 @@ and cannot bypass validation, safety policy, evaluation, or human approval.
 - [Test Strategy](docs/TEST_STRATEGY.md)
 - [Developer Guide](docs/DEVELOPER_GUIDE.md)
 - [User Manual](docs/USER_MANUAL.md)
+- [Incident Response Runbook](docs/INCIDENT_RESPONSE_RUNBOOK.md)
 
 ## Delivery
 
