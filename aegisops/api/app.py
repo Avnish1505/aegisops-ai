@@ -80,10 +80,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from slowapi import Limiter, _rate_limit_exceeded_handler
     from slowapi.errors import RateLimitExceeded
     from slowapi.util import get_remote_address
+    from starlette.requests import Request as StarletteRequest
+    from starlette.responses import Response as StarletteResponse
 
     limiter = Limiter(key_func=get_remote_address, default_limits=[])
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    exception_handler = cast(
+        Callable[[StarletteRequest, Exception], StarletteResponse | Awaitable[StarletteResponse]],
+        _rate_limit_exceeded_handler,
+    )
+    app.add_exception_handler(RateLimitExceeded, exception_handler)
 
     @app.middleware("http")
     async def security_and_observability_headers(

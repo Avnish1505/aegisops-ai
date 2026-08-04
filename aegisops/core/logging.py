@@ -4,18 +4,24 @@ from __future__ import annotations
 
 import contextvars
 import logging
+from collections.abc import MutableMapping
 from typing import Any
 
-from pythonjsonlogger.jsonlogger import JsonFormatter
+from pythonjsonlogger.jsonlogger import JsonFormatter  # type: ignore[import-untyped]
 
 # Context variable to hold the request ID for logging
 request_id_var: contextvars.ContextVar[Any] = contextvars.ContextVar('request_id', default=None)
 
 
-class RequestIDFormatter(JsonFormatter):
+class RequestIDFormatter(JsonFormatter):  # type: ignore[misc]
     """JSON log formatter that adds the request ID from context and renames fields."""
 
-    def add_fields(self, log_record, record, message_dict):
+    def add_fields(
+        self,
+        log_record: MutableMapping[str, Any],
+        record: logging.LogRecord,
+        message_dict: MutableMapping[str, Any],
+    ) -> None:
         super().add_fields(log_record, record, message_dict)
         # Rename standard fields to match our desired schema
         if 'levelname' in log_record:

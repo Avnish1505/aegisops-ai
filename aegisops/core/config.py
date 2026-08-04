@@ -23,7 +23,7 @@ class Settings(BaseSettings):
         "http://localhost:5173",
     ]
 
-    secret_key: str = Field(default="CHANGE_ME_TO_A_COMPLEX_SECRET", env="SECRET_KEY")
+    secret_key: str = Field(default="CHANGE_ME_TO_A_COMPLEX_SECRET", validation_alias="SECRET_KEY")
     access_token_expire_minutes: int = 60 * 24 * 8
     algorithm: str = "HS256"
 
