@@ -1,11 +1,10 @@
 """Observability tests for request IDs and structured logging."""
 
-import json
 import re
+
 from fastapi.testclient import TestClient
 
 from aegisops.api.app import app
-
 
 client = TestClient(app)
 

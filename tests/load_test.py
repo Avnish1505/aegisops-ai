@@ -2,11 +2,10 @@
 
 import argparse
 import concurrent.futures
+import os
 import statistics
 import sys
 import time
-import os
-from typing import Tuple
 
 # Add the root directory to the sys so that we can import aegisops
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -15,11 +14,10 @@ from fastapi.testclient import TestClient
 
 from aegisops.api.app import app
 
-
 client = TestClient(app)
 
 
-def make_request(endpoint: str) -> Tuple[bool, float]:
+def make_request(endpoint: str) -> tuple[bool, float]:
     """Make a single request to the endpoint and return success and elapsed time."""
     start = time.perf_counter()
     try:
@@ -34,7 +32,10 @@ def make_request(endpoint: str) -> Tuple[bool, float]:
 
 def run_load_test(endpoint: str, num_requests: int, concurrency: int) -> None:
     """Run a load test against the specified endpoint."""
-    print(f"Starting load test: {num_requests} requests to {endpoint} with {concurrency} concurrent workers...")
+    print(
+        f"Starting load test: {num_requests} requests to {endpoint} with "
+        f"{concurrency} concurrent workers..."
+    )
     start_time = time.perf_counter()
 
     success_count = 0

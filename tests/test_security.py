@@ -1,6 +1,5 @@
 """Security tests for the application."""
 
-import re
 from fastapi.testclient import TestClient
 
 from aegisops.api.app import create_app
