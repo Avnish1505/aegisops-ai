@@ -1,5 +1,6 @@
-"""Unit tests for the Implementation Integrity Analyzer (Bundles 1-2)."""
+"""Unit tests for the Implementation Integrity Analyzer (Bundles 1-3)."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -7,11 +8,18 @@ import pytest
 from aegisops.integrity_analyzer.api import (
     analyze_directory,
     analyze_file,
+    build_report,
     find_scaffolded_functions,
     find_scaffolded_functions_in_directory,
+    json_report,
 )
 from aegisops.integrity_analyzer.ast_parser import parse_source
-from aegisops.integrity_analyzer.models import ParsedModule, ScaffoldClassification, SourceFile
+from aegisops.integrity_analyzer.models import (
+    ParsedModule,
+    ScaffoldClassification,
+    ScaffoldFinding,
+    SourceFile,
+)
 from aegisops.integrity_analyzer.scaffold_detector import detect_scaffolded_functions
 from aegisops.integrity_analyzer.source_loader import (
     MAX_SOURCE_BYTES,
@@ -260,3 +268,57 @@ def test_find_scaffolded_functions_in_directory_aggregates_findings(tmp_path: Pa
     assert len(findings) == 1
     assert findings[0].function == "a"
     assert findings[0].file == tmp_path / "a.py"
+
+
+def test_build_report_returns_plain_dict(tmp_path: Path) -> None:
+    finding = ScaffoldFinding(
+        function="stub",
+        line=3,
+        classification=ScaffoldClassification.PASS,
+        file=tmp_path / "module.py",
+    )
+
+    report = build_report([finding])
+
+    assert report == {
+        "total_findings": 1,
+        "findings": [
+            {
+                "function": "stub",
+                "line": 3,
+                "classification": "pass",
+                "file": str(tmp_path / "module.py"),
+            }
+        ],
+    }
+
+
+def test_build_report_handles_no_findings() -> None:
+    assert build_report([]) == {"total_findings": 0, "findings": []}
+
+
+def test_json_report_round_trips_through_json(tmp_path: Path) -> None:
+    finding = ScaffoldFinding(
+        function="stub",
+        line=1,
+        classification=ScaffoldClassification.NOT_IMPLEMENTED,
+        file=tmp_path / "module.py",
+    )
+    report = build_report([finding])
+
+    rendered = json_report(report)
+
+    assert json.loads(rendered) == report
+
+
+def test_json_report_is_valid_json_text(tmp_path: Path) -> None:
+    module_path = tmp_path / "stub.py"
+    module_path.write_text("def stub():\n    ...\n", encoding="utf-8")
+    report = build_report(find_scaffolded_functions(module_path))
+
+    rendered = json_report(report, indent=None)
+
+    assert isinstance(rendered, str)
+    decoded = json.loads(rendered)
+    assert decoded["total_findings"] == 1
+    assert decoded["findings"][0]["classification"] == "ellipsis"
