@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 
@@ -21,3 +22,22 @@ class ParsedModule:
 
     source: SourceFile
     tree: ast.Module
+
+
+class ScaffoldClassification(StrEnum):
+    """The exact scaffold marker found as a function's entire body."""
+
+    PASS = "pass"
+    ELLIPSIS = "ellipsis"
+    DOCSTRING_ONLY = "docstring_only"
+    NOT_IMPLEMENTED = "not_implemented"
+
+
+@dataclass(frozen=True)
+class ScaffoldFinding:
+    """A function whose body contains only a scaffold marker, not an implementation."""
+
+    function: str
+    line: int
+    classification: ScaffoldClassification
+    file: Path

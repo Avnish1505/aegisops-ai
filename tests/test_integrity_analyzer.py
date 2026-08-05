@@ -1,12 +1,18 @@
-"""Unit tests for the Bundle 1 Implementation Integrity Analyzer scaffolding."""
+"""Unit tests for the Implementation Integrity Analyzer (Bundles 1-2)."""
 
 from pathlib import Path
 
 import pytest
 
-from aegisops.integrity_analyzer.api import analyze_directory, analyze_file
+from aegisops.integrity_analyzer.api import (
+    analyze_directory,
+    analyze_file,
+    find_scaffolded_functions,
+    find_scaffolded_functions_in_directory,
+)
 from aegisops.integrity_analyzer.ast_parser import parse_source
-from aegisops.integrity_analyzer.models import ParsedModule, SourceFile
+from aegisops.integrity_analyzer.models import ParsedModule, ScaffoldClassification, SourceFile
+from aegisops.integrity_analyzer.scaffold_detector import detect_scaffolded_functions
 from aegisops.integrity_analyzer.source_loader import (
     MAX_SOURCE_BYTES,
     load_source_directory,
@@ -132,3 +138,125 @@ def test_analyze_directory_loads_and_parses_every_module(tmp_path: Path) -> None
 
     assert [module.source.path.name for module in parsed_modules] == ["one.py", "two.py"]
     assert all(isinstance(module.tree.body, list) for module in parsed_modules)
+
+
+def _parse(tmp_path: Path, source: str) -> ParsedModule:
+    module_path = tmp_path / "module.py"
+    module_path.write_text(source, encoding="utf-8")
+    return parse_source(load_source_file(module_path))
+
+
+def test_detects_pass_only_function(tmp_path: Path) -> None:
+    parsed = _parse(tmp_path, "def stub():\n    pass\n")
+
+    findings = detect_scaffolded_functions(parsed)
+
+    assert len(findings) == 1
+    assert findings[0].function == "stub"
+    assert findings[0].line == 1
+    assert findings[0].classification == ScaffoldClassification.PASS
+    assert findings[0].file == parsed.source.path
+
+
+def test_detects_ellipsis_only_function(tmp_path: Path) -> None:
+    parsed = _parse(tmp_path, "def stub():\n    ...\n")
+
+    findings = detect_scaffolded_functions(parsed)
+
+    assert len(findings) == 1
+    assert findings[0].classification == ScaffoldClassification.ELLIPSIS
+
+
+def test_detects_docstring_only_function(tmp_path: Path) -> None:
+    parsed = _parse(tmp_path, "def stub():\n    'TODO: implement this.'\n")
+
+    findings = detect_scaffolded_functions(parsed)
+
+    assert len(findings) == 1
+    assert findings[0].classification == ScaffoldClassification.DOCSTRING_ONLY
+
+
+def test_detects_raise_not_implemented_error_call(tmp_path: Path) -> None:
+    parsed = _parse(tmp_path, "def stub():\n    raise NotImplementedError()\n")
+
+    findings = detect_scaffolded_functions(parsed)
+
+    assert len(findings) == 1
+    assert findings[0].classification == ScaffoldClassification.NOT_IMPLEMENTED
+
+
+def test_detects_raise_not_implemented_error_with_message(tmp_path: Path) -> None:
+    parsed = _parse(tmp_path, "def stub():\n    raise NotImplementedError('later')\n")
+
+    findings = detect_scaffolded_functions(parsed)
+
+    assert len(findings) == 1
+    assert findings[0].classification == ScaffoldClassification.NOT_IMPLEMENTED
+
+
+def test_detects_bare_raise_not_implemented_error(tmp_path: Path) -> None:
+    parsed = _parse(tmp_path, "def stub():\n    raise NotImplementedError\n")
+
+    findings = detect_scaffolded_functions(parsed)
+
+    assert len(findings) == 1
+    assert findings[0].classification == ScaffoldClassification.NOT_IMPLEMENTED
+
+
+def test_ignores_implemented_function(tmp_path: Path) -> None:
+    parsed = _parse(tmp_path, "def real():\n    return 1 + 1\n")
+
+    assert detect_scaffolded_functions(parsed) == []
+
+
+def test_ignores_other_raised_exceptions(tmp_path: Path) -> None:
+    parsed = _parse(tmp_path, "def stub():\n    raise ValueError('nope')\n")
+
+    assert detect_scaffolded_functions(parsed) == []
+
+
+def test_ignores_docstring_followed_by_pass(tmp_path: Path) -> None:
+    """A multi-statement body is not one of the four exact scaffold shapes."""
+    parsed = _parse(tmp_path, "def stub():\n    'doc'\n    pass\n")
+
+    assert detect_scaffolded_functions(parsed) == []
+
+
+def test_detects_scaffolded_method_and_async_function(tmp_path: Path) -> None:
+    source = (
+        "class Service:\n"
+        "    def handle(self):\n"
+        "        pass\n"
+        "\n"
+        "async def fetch():\n"
+        "    ...\n"
+    )
+    parsed = _parse(tmp_path, source)
+
+    findings = detect_scaffolded_functions(parsed)
+
+    assert {finding.function for finding in findings} == {"handle", "fetch"}
+    handle = next(finding for finding in findings if finding.function == "handle")
+    assert handle.line == 2
+    assert handle.classification == ScaffoldClassification.PASS
+
+
+def test_find_scaffolded_functions_reads_from_disk(tmp_path: Path) -> None:
+    module_path = tmp_path / "stub.py"
+    module_path.write_text("def stub():\n    pass\n", encoding="utf-8")
+
+    findings = find_scaffolded_functions(module_path)
+
+    assert len(findings) == 1
+    assert findings[0].file == module_path
+
+
+def test_find_scaffolded_functions_in_directory_aggregates_findings(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("def a():\n    pass\n", encoding="utf-8")
+    (tmp_path / "b.py").write_text("def b():\n    return 1\n", encoding="utf-8")
+
+    findings = find_scaffolded_functions_in_directory(tmp_path, recursive=False)
+
+    assert len(findings) == 1
+    assert findings[0].function == "a"
+    assert findings[0].file == tmp_path / "a.py"
