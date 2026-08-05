@@ -322,3 +322,58 @@ def test_json_report_is_valid_json_text(tmp_path: Path) -> None:
     decoded = json.loads(rendered)
     assert decoded["total_findings"] == 1
     assert decoded["findings"][0]["classification"] == "ellipsis"
+
+
+def test_load_source_directory_non_recursive_ignores_nested_files(tmp_path: Path) -> None:
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    (tmp_path / "top.py").write_text("top = 1\n", encoding="utf-8")
+    (nested / "inner.py").write_text("inner = 1\n", encoding="utf-8")
+
+    sources = load_source_directory(tmp_path, recursive=False)
+
+    assert [source.path.name for source in sources] == ["top.py"]
+
+
+def test_ignores_qualified_not_implemented_error(tmp_path: Path) -> None:
+    """The detector matches a bare ``NotImplementedError`` name, not module-qualified raises."""
+    parsed = _parse(tmp_path, "def stub():\n    raise builtins.NotImplementedError()\n")
+
+    assert detect_scaffolded_functions(parsed) == []
+
+
+def test_detects_scaffolded_function_nested_inside_function(tmp_path: Path) -> None:
+    source = "def outer():\n    def inner():\n        pass\n    return inner\n"
+    parsed = _parse(tmp_path, source)
+
+    findings = detect_scaffolded_functions(parsed)
+
+    assert [finding.function for finding in findings] == ["inner"]
+
+
+def test_find_scaffolded_functions_in_directory_recursive_default_includes_nested(
+    tmp_path: Path,
+) -> None:
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    (tmp_path / "top.py").write_text("def top():\n    pass\n", encoding="utf-8")
+    (nested / "inner.py").write_text("def inner():\n    ...\n", encoding="utf-8")
+
+    findings = find_scaffolded_functions_in_directory(tmp_path)
+
+    assert {finding.function for finding in findings} == {"top", "inner"}
+
+
+def test_json_report_default_indent_is_pretty_printed(tmp_path: Path) -> None:
+    finding = ScaffoldFinding(
+        function="stub",
+        line=1,
+        classification=ScaffoldClassification.PASS,
+        file=tmp_path / "module.py",
+    )
+    report = build_report([finding])
+
+    rendered = json_report(report)
+
+    assert "\n" in rendered
+    assert rendered.startswith('{\n  "')
