@@ -13,6 +13,7 @@ Verify that the implemented system remains a safe, deterministic, human-gated ad
 | Application/infrastructure tests | Seed reproducibility, local retrieval ranking/top-three behavior, NIM JSON validation, retry, missing/unsafe response fallback. |
 | API tests | Health probes, scenario and decision contracts, validation errors, request ID/header behavior, engine selection, and operator authorization behavior. |
 | Persistence-model tests | ORM creation, relationships, foreign keys, and initial schema assumptions using a test database. |
+| Integrity-analyzer unit tests | Source loading validation, AST parse failures, scaffolded-function classification (`pass`, `...`, docstring-only, `raise NotImplementedError`), and dict/JSON report generation, isolated from the crisis-response layers. |
 | Frontend verification | TypeScript production build via `npm run build`; the repository currently has no browser end-to-end test suite. |
 
 ## Execution

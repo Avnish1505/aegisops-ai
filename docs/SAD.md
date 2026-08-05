@@ -23,6 +23,7 @@ SQLAlchemy models + Alembic migration are defined separately; no current API rou
 | `aegisops/application/` | Scenario generator and `DecisionEngine`/`RetrievalPort` protocols. |
 | `aegisops/infrastructure/` | Deterministic allocator, local FAISS retrieval, NVIDIA NIM client, in-memory audit-log utility. |
 | `aegisops/api/` | App factory, routes, schemas, request protection, and development role checks. |
+| `aegisops/integrity_analyzer/` | Isolated static-analysis toolkit (source loading, AST parsing, scaffolded-function detection, dict/JSON reports); no dependency on the other `aegisops` layers and no HTTP or CLI surface. |
 | `backend/` | ASGI compatibility entry point, legacy route aliases, Alembic configuration, and ORM mappings. |
 | `knowledge/` | Local Markdown source corpus searched by the retrieval adapter. |
 

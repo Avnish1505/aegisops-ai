@@ -57,6 +57,8 @@ and cannot bypass validation, safety policy, evaluation, or human approval.
 - `aegisops/application` — use cases and ports.
 - `aegisops/infrastructure` — the deterministic baseline adapter.
 - `aegisops/api` — FastAPI transport, safe error handling, CORS, and observability headers.
+- `aegisops/integrity_analyzer` — isolated static-analysis toolkit (source loading, AST parsing,
+  scaffolded-function detection, and structured dict/JSON reports).
 - `backend` and `sim` — migration-compatible prototype entry points.
 - `tests` — unit and API acceptance tests.
 - `docs` — Phase 1 architecture, API, and security artifacts.
@@ -67,6 +69,7 @@ and cannot bypass validation, safety policy, evaluation, or human approval.
 - [API Specification](docs/API.md)
 - [Security Threat Model](docs/SECURITY_THREAT_MODEL.md)
 - [Engineering and Research Roadmap](docs/ROADMAP.md)
+- [Implementation Integrity Analyzer](docs/INTEGRITY_ANALYZER.md)
 - [Software Requirements Specification](docs/SRS.md)
 - [Software Architecture Document](docs/SAD.md)
 - [High-Level Design](docs/HLD.md)
