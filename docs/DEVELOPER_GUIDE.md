@@ -34,6 +34,8 @@ To exercise the optional provider adapter, set `NVIDIA_API_KEY` and call the sam
 
 Keep business policy in `aegisops/domain`, use cases and protocols in `aegisops/application`, adapters in `aegisops/infrastructure`, and HTTP concerns in `aegisops/api`. Add a decision engine through the `DecisionEngine` protocol; it must return a validated `DecisionResult`, require human approval, and not execute external actions. Maintain strict models and extend tests with every behavior change.
 
+`aegisops/integrity_analyzer` is a separate, self-contained static-analysis toolkit (source loading, AST parsing, scaffolded-function detection, and dict/JSON reporting via `aegisops/integrity_analyzer/api.py`). It does not import from or depend on the crisis-response layers above, and it has no HTTP route or CLI entry point.
+
 ## Verification and migration commands
 
 ```bash
