@@ -69,6 +69,7 @@ and cannot bypass validation, safety policy, evaluation, or human approval.
 - [API Specification](docs/API.md)
 - [Security Threat Model](docs/SECURITY_THREAT_MODEL.md)
 - [Engineering and Research Roadmap](docs/ROADMAP.md)
+- [Implementation Integrity Analyzer](docs/INTEGRITY_ANALYZER.md)
 - [Software Requirements Specification](docs/SRS.md)
 - [Software Architecture Document](docs/SAD.md)
 - [High-Level Design](docs/HLD.md)
