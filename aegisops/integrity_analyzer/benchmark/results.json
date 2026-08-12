@@ -1,0 +1,253 @@
+{
+  "scenario_count": 15,
+  "intent_consistency_threshold": 0.4,
+  "scenarios": [
+    {
+      "filename": "tp_scaffolded_safety_gate.py",
+      "category": "true_positive",
+      "description": "The gate is correctly wired (called before the operation) but its body is scaffolded (`pass`), so it never actually validates anything.",
+      "expected_findings": [
+        "scaffolded"
+      ],
+      "analyzer_findings": [
+        "scaffolded"
+      ],
+      "baseline_findings": [],
+      "expected_positive": true,
+      "analyzer_positive": true,
+      "baseline_positive": false,
+      "analyzer_correct": true,
+      "baseline_correct": false
+    },
+    {
+      "filename": "tp_gate_never_called.py",
+      "category": "true_positive",
+      "description": "The safety gate is fully implemented but is never called by anything else in the file.",
+      "expected_findings": [
+        "defined_but_never_called"
+      ],
+      "analyzer_findings": [
+        "defined_but_never_called"
+      ],
+      "baseline_findings": [],
+      "expected_positive": true,
+      "analyzer_positive": true,
+      "baseline_positive": false,
+      "analyzer_correct": true,
+      "baseline_correct": false
+    },
+    {
+      "filename": "tp_guarded_op_bypasses_gate.py",
+      "category": "true_positive",
+      "description": "The gate is implemented and called elsewhere, but the function that dispatches resources never calls it.",
+      "expected_findings": [
+        "guarded_op_bypasses_gate"
+      ],
+      "analyzer_findings": [
+        "guarded_op_bypasses_gate"
+      ],
+      "baseline_findings": [],
+      "expected_positive": true,
+      "analyzer_positive": true,
+      "baseline_positive": false,
+      "analyzer_correct": true,
+      "baseline_correct": false
+    },
+    {
+      "filename": "tp_intent_mismatch.py",
+      "category": "true_positive",
+      "description": "The docstring claims bcrypt password encryption and a confirmation email; the implementation does neither (it stores the raw password in a dict).",
+      "expected_findings": [
+        "intent_mismatch"
+      ],
+      "analyzer_findings": [
+        "intent_mismatch"
+      ],
+      "baseline_findings": [],
+      "expected_positive": true,
+      "analyzer_positive": true,
+      "baseline_positive": false,
+      "analyzer_correct": true,
+      "baseline_correct": false
+    },
+    {
+      "filename": "tp_not_implemented_claims_complete.py",
+      "category": "true_positive",
+      "description": "The docstring claims the audit logger is 'fully implemented and production-ready'; the body is a bare NotImplementedError stub. This single seeded bug legitimately trips two independent signals (scaffold detector and intent-consistency check) rather than one, which is expected and not double-counted.",
+      "expected_findings": [
+        "scaffolded",
+        "intent_mismatch"
+      ],
+      "analyzer_findings": [
+        "scaffolded"
+      ],
+      "baseline_findings": [],
+      "expected_positive": true,
+      "analyzer_positive": true,
+      "baseline_positive": false,
+      "analyzer_correct": true,
+      "baseline_correct": false
+    },
+    {
+      "filename": "clean_gate_wired_correctly.py",
+      "category": "clean",
+      "description": "A textbook correctly-wired gate: implemented, and called before the guarded operation runs.",
+      "expected_findings": [],
+      "analyzer_findings": [],
+      "baseline_findings": [],
+      "expected_positive": false,
+      "analyzer_positive": false,
+      "baseline_positive": false,
+      "analyzer_correct": true,
+      "baseline_correct": true
+    },
+    {
+      "filename": "clean_fully_implemented_module.py",
+      "category": "clean",
+      "description": "No safety-critical code at all; both functions are fully implemented.",
+      "expected_findings": [],
+      "analyzer_findings": [],
+      "baseline_findings": [],
+      "expected_positive": false,
+      "analyzer_positive": false,
+      "baseline_positive": false,
+      "analyzer_correct": true,
+      "baseline_correct": true
+    },
+    {
+      "filename": "clean_multiple_gates_all_wired.py",
+      "category": "clean",
+      "description": "Two safety gates, both implemented and both called before the guarded operation runs.",
+      "expected_findings": [],
+      "analyzer_findings": [],
+      "baseline_findings": [],
+      "expected_positive": false,
+      "analyzer_positive": false,
+      "baseline_positive": false,
+      "analyzer_correct": true,
+      "baseline_correct": true
+    },
+    {
+      "filename": "clean_no_safety_critical_code.py",
+      "category": "clean",
+      "description": "Plain utility functions with no gates and no critical operations configured; must not be flagged.",
+      "expected_findings": [],
+      "analyzer_findings": [],
+      "baseline_findings": [],
+      "expected_positive": false,
+      "analyzer_positive": false,
+      "baseline_positive": false,
+      "analyzer_correct": true,
+      "baseline_correct": true
+    },
+    {
+      "filename": "clean_operation_with_gate_and_extra_checks.py",
+      "category": "clean",
+      "description": "The guarded operation calls an unrelated helper first and then the gate; the gate is still present in its call set, so this must not be flagged.",
+      "expected_findings": [],
+      "analyzer_findings": [],
+      "baseline_findings": [],
+      "expected_positive": false,
+      "analyzer_positive": false,
+      "baseline_positive": false,
+      "analyzer_correct": true,
+      "baseline_correct": true
+    },
+    {
+      "filename": "hard_gate_called_via_alias.py",
+      "category": "hard",
+      "description": "The gate is genuinely enforced, but only through a local alias (`gate = validate_safety_gate; gate(x)`). Ideal ground truth is clean.",
+      "expected_findings": [],
+      "analyzer_findings": [
+        "defined_but_never_called",
+        "guarded_op_bypasses_gate"
+      ],
+      "baseline_findings": [],
+      "expected_positive": false,
+      "analyzer_positive": true,
+      "baseline_positive": false,
+      "analyzer_correct": false,
+      "baseline_correct": true
+    },
+    {
+      "filename": "hard_gate_called_through_helper.py",
+      "category": "hard",
+      "description": "The gate is genuinely enforced, but indirectly: the guarded operation calls a `preflight_check` helper, which calls the gate. Ideal ground truth is clean.",
+      "expected_findings": [],
+      "analyzer_findings": [
+        "guarded_op_bypasses_gate"
+      ],
+      "baseline_findings": [],
+      "expected_positive": false,
+      "analyzer_positive": true,
+      "baseline_positive": false,
+      "analyzer_correct": false,
+      "baseline_correct": true
+    },
+    {
+      "filename": "hard_legitimately_empty_abstract_method.py",
+      "category": "hard",
+      "description": "An `@abstractmethod` with an `...` body is a legitimate interface stub, not a real scaffolding bug; the concrete subclass implements it. Ideal ground truth is clean.",
+      "expected_findings": [],
+      "analyzer_findings": [
+        "scaffolded"
+      ],
+      "baseline_findings": [],
+      "expected_positive": false,
+      "analyzer_positive": true,
+      "baseline_positive": false,
+      "analyzer_correct": false,
+      "baseline_correct": true
+    },
+    {
+      "filename": "hard_decorator_based_guard.py",
+      "category": "hard",
+      "description": "The operation is genuinely guarded, but through a `@requires_approval` decorator that calls the gate on the caller's behalf, not through a direct call in the operation's own body. Ideal ground truth is clean.",
+      "expected_findings": [],
+      "analyzer_findings": [
+        "guarded_op_bypasses_gate"
+      ],
+      "baseline_findings": [],
+      "expected_positive": false,
+      "analyzer_positive": true,
+      "baseline_positive": false,
+      "analyzer_correct": false,
+      "baseline_correct": true
+    },
+    {
+      "filename": "hard_gate_called_inside_wrong_branch.py",
+      "category": "hard",
+      "description": "The gate is called only on the dry_run branch; the real maintenance path never validates it. This is a genuine bug.",
+      "expected_findings": [
+        "guarded_op_bypasses_gate"
+      ],
+      "analyzer_findings": [],
+      "baseline_findings": [],
+      "expected_positive": true,
+      "analyzer_positive": false,
+      "baseline_positive": false,
+      "analyzer_correct": false,
+      "baseline_correct": false
+    }
+  ],
+  "metrics": {
+    "naive_baseline": {
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 6,
+      "true_negatives": 9,
+      "precision": null,
+      "recall": 0.0,
+      "mcc": 0.0
+    },
+    "analyzer": {
+      "true_positives": 5,
+      "false_positives": 4,
+      "false_negatives": 1,
+      "true_negatives": 5,
+      "precision": 0.5555555555555556,
+      "recall": 0.8333333333333334,
+      "mcc": 0.3889
+    }
+  }
+}
