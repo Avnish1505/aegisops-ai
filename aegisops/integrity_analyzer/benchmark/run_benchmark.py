@@ -206,7 +206,9 @@ def score(results: list[ScenarioResult], *, predicted: str) -> ConfusionMatrix:
             fn += 1
         else:
             tn += 1
-    return ConfusionMatrix(true_positives=tp, false_positives=fp, false_negatives=fn, true_negatives=tn)
+    return ConfusionMatrix(
+        true_positives=tp, false_positives=fp, false_negatives=fn, true_negatives=tn
+    )
 
 
 def _fmt(value: float | None) -> str:

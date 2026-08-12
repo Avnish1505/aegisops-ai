@@ -100,7 +100,9 @@ def check_safety_wiring(
 
     findings = _find_never_called(call_map, safety_critical_names, parsed.source.path)
     findings.extend(
-        _find_bypassed_gates(call_map, safety_critical_names, operation_keywords, parsed.source.path)
+        _find_bypassed_gates(
+            call_map, safety_critical_names, operation_keywords, parsed.source.path
+        )
     )
     return findings
 
