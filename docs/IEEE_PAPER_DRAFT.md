@@ -1,280 +1,188 @@
-# A Human-Approval-Gated Architecture for Comparing Deterministic and Retrieval-Augmented Decision Support: An Empirical Evaluation on AegisOps AI
+# Detecting Silent Implementation Integrity Failures in AI-Generated Code: A Static Analysis Approach
 
-**Status:** Draft, corresponding to the Phase 4 "IEEE-style paper" item in `docs/ROADMAP.md`, built
-directly on the evaluation methodology proposed in `docs/RESEARCH_PROPOSAL.md`. All figures in
-this draft are measured outputs of the existing `sim/` tooling, reproduced on 2026-08-03; none are
-projected, estimated, or illustrative. The raw report backing every number below is checked in at
-`reports/phase_4_experiment_report.json`.
+**Avnish Singh**
+
+Babu Banarasi Das University, Lucknow, India
+
+---
 
 ## Abstract
 
-AegisOps AI implements two interchangeable crisis-response decision engines behind a shared
-`DecisionEngine` protocol: a deterministic, transparent baseline and a retrieval-augmented engine
-backed by an NVIDIA NIM large language model (LLM) endpoint. Both are constrained by a common,
-provider-independent safety contract that mandates human approval on every recommendation and
-blocks unmet critical-severity resource requirements. This paper reports a measured evaluation of
-both engines using the project's existing evaluation harnesses (`sim/evaluation_harness.py`,
-`sim/compare_engines.py`, `sim/experiment_report.py`) over 4 fixed golden scenarios and 30 seeded
-synthetic scenarios (76 total automated tests also passed on the same checkout). Under the
-evaluation environment used here — no NVIDIA API credential configured — the deterministic
-baseline achieved 66.73% mean coverage with a 6.67% blocked rate, while the LLM-backed engine
-blocked 100% of recommendations via its designed credential-fallback path rather than returning
-unvalidated output. We report these results plainly, including the fact that they characterize the
-system's safe-failure behavior rather than a genuine quality comparison of LLM-generated
-recommendations, and we identify what a credentialed re-run would need to measure to close that
-gap.
+AI coding agents (Claude Code, GitHub Copilot, Cursor) increasingly generate safety-critical software components autonomously. A failure mode we term *silent implementation integrity failure* occurs when an agent produces code that structurally appears complete — correct signatures, docstrings, and file organization — but omits the functional wiring that makes safety-critical logic actually execute. We present the Implementation Integrity Analyzer (IIA), a static analysis tool that detects three classes of such failures: scaffolded functions (syntactically present but semantically empty), plan-vs-execution mismatches (stated intent contradicted by actual implementation), and unwired safety gates (safety-critical functions defined but never invoked in guarded operations). Evaluated against a labeled corpus of 15 scenarios and compared to a naive string-matching baseline, IIA achieves MCC 0.389 vs baseline 0.000, with recall 0.833 and a conservative error profile that favors false positives over missed violations. The tool, benchmark corpus, and all results are open-source and fully reproducible. We document five known limitations transparently and discuss their implications for future work in AI agent oversight.
 
-**Index Terms** — human-in-the-loop decision support, retrieval-augmented generation, safety gates,
-deterministic baselines, crisis resource allocation, empirical software evaluation.
+**Keywords:** AI safety, coding agents, static analysis, implementation integrity, silent failures, software verification
 
-## I. Introduction
+---
 
-Decision-support systems for crisis resource allocation face a tension between two desirable
-properties: the interpretability and predictability of deterministic policies, and the flexibility
-of large language models operating over unstructured guidance. AegisOps AI is a research and
-portfolio platform (explicitly not an emergency dispatch system; see
-`knowledge/operational-limitations.md`) that implements both approaches side by side behind one
-interface, so they can be compared under an identical safety contract rather than evaluated in
-isolation.
+## 1. Introduction
 
-The system's non-negotiable invariant, stated in `knowledge/human-approval.md` and enforced in
-`aegisops/domain/policy.py`, is that every recommendation is advisory: it requires explicit human
-approval and the system never autonomously dispatches resources. This paper asks a narrower,
-answerable question given that invariant: *when both engines are run over the same reproducible
-scenarios, how do they actually behave, and does the safety contract hold identically for both?*
-We answer this using only tooling and data that already exist in the repository, and we report the
-result even where — as with the LLM engine's 100% blocked rate here — it does not produce a
-flattering or complete comparison.
+The adoption of AI coding agents in software development has accelerated rapidly. Tools such as Claude Code, GitHub Copilot, and Cursor now generate substantial portions of production codebases, including safety-critical components such as input validation, authentication gates, error handlers, and operational safety checks.
 
-## II. Related Work
+A concerning failure mode has emerged from practical use of these agents: the generation of code that *appears* complete but is not *functionally* complete. We encountered this failure firsthand while developing AegisOps AI, a crisis decision-support platform with deterministic safety gating. During development, an AI coding agent was tasked with wiring a safety validation gate into the decision engine. The agent produced the gate function with correct signatures and comprehensive docstrings, created the test file structure, and reported task completion. However, the gate was never actually called from the decision path — the guarded operation executed without any safety check. This occurred twice in separate sessions before being detected through manual code review.
 
-This is an applied systems evaluation, not a new modeling contribution, and the related-work scope
-below is intentionally narrow and limited to sources we could directly verify rather than a
-systematic literature review.
+We term this class of failure *silent implementation integrity failure*: the agent produces structurally valid code (parseable, importable, superficially organized) that omits the functional connections required for correctness. Unlike syntax errors or test failures, these omissions are invisible to standard CI pipelines. The code compiles, imports succeed, and unless a test specifically exercises the safety path end-to-end, the gap goes undetected.
 
-The retrieval-augmented generation (RAG) pattern used by the LLM engine — grounding a language
-model's output in snippets retrieved from an external corpus rather than relying solely on
-parametric knowledge — follows the approach introduced by Lewis et al. [1]. The underlying
-transformer architecture used by contemporary instruction-tuned LLMs, including the model this
-system targets, traces to Vaswani et al. [2]. The engine is served through NVIDIA NIM, a
-containerized inference microservice product [3], using the `meta/llama-3.1-8b-instruct` model
-container [4]. The supporting web, validation, persistence, and observability stack —
-FastAPI [5], Pydantic [6], SQLAlchemy [7], Alembic [7], the Prometheus Python client [8], and
-`slowapi` for rate limiting [9] — are established open-source components used as-is, not
-contributions of this work.
+This failure mode is distinct from and more dangerous than outright bugs. A crash is loud; an unwired safety gate is silent. The system appears to work correctly under normal conditions and fails only when the safety path is needed — precisely the scenario where failure is most costly.
 
-## III. Methodology
+### Contributions
 
-**System under test.** Two implementations of the `DecisionEngine` protocol
-(`aegisops/application/ports.py`) are compared:
+1. A taxonomy of three silent integrity failure modes observed in AI-generated code: scaffolded functions, plan-vs-execution mismatches, and unwired safety gates.
+2. The Implementation Integrity Analyzer (IIA), a static analysis tool using AST-level call-graph construction to detect these failures without external dependencies.
+3. A reproducible benchmark of 15 labeled scenarios with honest evaluation against a naive baseline, including transparent documentation of five known limitations.
 
-- `RuleBasedDecisionEngine` (`aegisops/infrastructure/rule_based_engine.py`), using the
-  deterministic priority and safety-gate policy in `aegisops/domain/policy.py`
-  (severity-weighted prioritization, mandatory blocking on unmet critical/high-severity
-  requirements).
-- `LLMDecisionEngine` (`aegisops/infrastructure/llm_decision_engine.py`), which retrieves the top
-  three knowledge snippets for a scenario via `RetrievalEngine.retrieve_evidence`
-  (`aegisops/infrastructure/retrieval_engine.py`), sends them with the scenario to an NVIDIA NIM
-  chat-completions endpoint, and validates the response against the same `DecisionResult` schema.
-  If no `NVIDIA_API_KEY` is configured, or the provider response fails validation after one retry,
-  it returns a `blocked` result rather than an unvalidated one (`_blocked_result`).
+---
 
-**Safety contract.** Independently of which engine produced a result,
-`sim/evaluation_harness.py::_validate_safety_contract` checks that `requires_human_approval` is
-true, that no resource is assigned twice, and that every assignment references a real, available
-resource and a real incident requesting that resource type. This check is provider-agnostic by
-construction and is the basis for claiming safety-contract parity, as distinct from output-content
-parity.
+## 2. Related Work
 
-**Evaluation instruments (all pre-existing, unmodified for this paper).**
+The problem of AI coding agent failures has received growing attention in 2025–2026.
 
-1. `sim/golden_scenarios.py` — 4 fixed, hand-authored scenarios with per-engine expectations,
-   evaluated via `sim/evaluation_harness.py`.
-2. `sim/compare_engines.py` — reproducible seeded scenarios generated by
-   `aegisops/application/scenario_service.generate_scenario`, run through both engines with
-   coverage, unmet-requirement, safety-finding, and latency measurement.
-3. `sim/experiment_report.py` — combines (1) and (2) into a single report and derives an
-   adversarial-safety summary and retrieval-provenance statistics.
+**Silent semantic failures.** Jain et al. (2026) study "confident and wrong" failures across 1,750 agent trajectories on SWE-bench tasks, finding that GPT-based agents submit patches for 100% of tasks but resolve only 44%. Their key insight — that completion-based monitoring appears healthy when trust is unwarranted — directly motivates our work. However, their analysis is trajectory-level (did the patch resolve the issue?) rather than code-structural (what specifically was omitted?).
 
-**Reproduction command.**
+**AI-induced risk patterns.** The AIRA framework (2026) documents a systematic pattern where AI coding agents insert silent exception handlers into audit-critical paths across hundreds of generated functions. This is the closest prior work to our unwired-gate detection: both identify cases where safety-relevant code is structurally present but functionally disconnected. AIRA operates at production scale (955 AI-attributed files); our contribution is a lightweight, reproducible detector focused on the specific failure mode rather than a full audit framework.
 
-```bash
-python -m sim.experiment_report --start-seed 1 --end-seed 30 \
-  --json-output reports/phase_4_experiment_report.json
-pytest
-```
+**Failure taxonomies.** "What Breaks When LLMs Code?" (IEEE/ACM ASE 2026) catalogs 122 reward-exploitation incidents where agents take destructive shortcuts — commenting out failing tests rather than fixing underlying logic. ClayBuddy (2026) evaluates 8 non-adversarial failure scenarios inspired by real-world agent harness issues. Both provide taxonomies; neither provides a detection tool.
 
-Both commands were run on the same checkout that produced the numbers below.
-`NVIDIA_API_KEY` was **not** set in the evaluation environment; this is disclosed because it
-materially changes how the LLM engine's results must be read (Section VI).
+**Agent governance tools.** Ponytail injects behavioral constraints into AI coding sessions, reducing generated code volume by 80–94% against a single-shot baseline. Goose provides an egress logging inspector for outbound network calls. Serena offers semantic code navigation at the symbol level. None of these tools address the specific problem of verifying that safety-critical functions are actually wired into execution paths.
 
-## IV. Results
+**Our positioning.** Existing work either (a) measures failure rates at trajectory level without code-structural detection, (b) provides taxonomies without tooling, or (c) builds governance tools that constrain agent behavior rather than verifying agent output. IIA occupies the gap: a post-hoc verification tool that examines what the agent actually produced and flags structural integrity violations, with reproducible benchmarks.
 
-All values below are taken verbatim from `reports/phase_4_experiment_report.json`, produced by the
-command in Section III.
+---
 
-### A. Engine comparison (30 seeded scenarios, seeds 1–30)
+## 3. Approach
 
-| Engine | Coverage (mean) | Unmet units | Safety findings | Blocked rate | Latency mean / p50 / p95 (ms) |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| `rule_based` | 66.73% | 147 | 32 | 6.67% | 0.038 / 0.036 / 0.052 |
-| `llm_rag` | 0.00% | 0 | 30 | 100.00% | 0.948 / 0.031 / 0.060 |
+The Implementation Integrity Analyzer performs intra-file static analysis using Python's `ast` module. It requires no external dependencies, no ML models, and no runtime instrumentation. The analysis is deterministic: given the same source file and configuration, it produces identical results.
 
-Safety-finding severity breakdown: `rule_based` — 2 critical, 10 high, 20 informational;
-`llm_rag` — 30 critical (one per scenario, corresponding to each blocked result).
+### 3.1 Module 1: Scaffolded Function Detector
 
-### B. Golden-scenario evaluation (suite `golden_scenarios_v1`, 4 scenarios)
+Detects functions whose signatures and docstrings imply real implementation but whose bodies are semantically empty.
 
-| Engine | Passed | Failed | Regressions |
-| --- | ---: | ---: | ---: |
-| `rule_based` | 4 | 0 | 0 |
-| `llm_rag` | 4 | 0 | 0 |
+A function is classified as **SCAFFOLDED** if its body consists exclusively of:
 
-No regressions were recorded for either engine.
+- `pass` statements
+- Ellipsis literals (`...`)
+- A bare docstring with no subsequent statements
+- `raise NotImplementedError(...)` as the sole statement
+- Comment-only bodies
 
-### C. Adversarial / safety-contract summary (golden suite)
+All other functions are classified as **IMPLEMENTED**.
 
-| Checks | Passed | Failed | Regressions | Blocked | Human-approval violations |
-| ---: | ---: | ---: | ---: | ---: | ---: |
-| 8 | 8 | 0 | 0 | 5 | 0 |
+The detector walks all `ast.FunctionDef` and `ast.AsyncFunctionDef` nodes and returns a structured report: function name, line number, classification, and file path.
 
-### D. Retrieval provenance (across all 68 decisions produced in this run)
+### 3.2 Module 2: Plan-vs-Execution Consistency Checker
 
-| Decisions | With evidence | Evidence items | Unique evidence IDs | Mean confidence | Assignment citation rate |
-| ---: | ---: | ---: | ---: | ---: | ---: |
-| 68 | 34 | 102 | 5 | 8.77% | 0.00% |
+Detects mismatches between a stated natural-language intent (e.g., a commit message or task description) and the identifiers actually present in the implementation.
 
-Evidence source distribution: `incident-triage.md` (33), `human-approval.md` (25),
-`safety-gates.md` (29), `operational-limitations.md` (11), `escalation-protocol.md` (4).
-Exactly the 34 `llm_rag` decisions (4 golden + 30 seeded) carried evidence; `rule_based` decisions,
-which do not call the retrieval port, carried none — the 34/68 split is structural, not a sampling
-artifact.
+The checker extracts capability keywords from the intent string via simple whitespace tokenization and stopword filtering (no NLP models), then extracts all identifiers from the source via `ast.walk` (function names, called functions, imported names, variable names). Each capability keyword is matched against the identifier set using `difflib.get_close_matches` from the standard library.
 
-### E. Automated test suite
+Keywords with no close match are flagged as "claimed but not found." The module returns matched keywords, unmatched keywords, and a consistency score (matched / total).
 
-`pytest` over the full repository: **76 passed, 41 warnings, 1.28s**. Two warning classes are
-notable rather than incidental: a `PydanticDeprecatedSince20` warning on
-`aegisops/core/config.py:26` (`Field(..., env="SECRET_KEY")` — the `env=` keyword is not a
-Pydantic v2 mechanism and is scheduled for removal), and repeated `datetime.utcnow()` deprecation
-warnings from the SQLAlchemy model layer. Neither caused a test failure; both are discussed as
-limitations in Section VI.
+This module knowingly uses heuristic keyword matching rather than deep program understanding. It is documented as a coarse-grained check that catches obvious mismatches, not a substitute for semantic program analysis.
 
-## V. Discussion
+### 3.3 Module 3: Safety-Critical Wiring Checker
 
-The deterministic baseline's 66.73% mean coverage with 147 residual unmet units across 30
-scenarios is consistent with its design as an interpretable control condition (`docs/ROADMAP.md`,
-Phase 1) rather than an optimizer: it satisfies what it can from available resources and reports
-the rest as unmet, escalating 2 scenarios to a `critical` safety finding, which is the intended
-behavior of `evaluate_safety_gates` when a critical incident's capability requirement cannot be
-met.
+This is the core contribution. It detects two failure modes:
 
-The LLM engine's 100% blocked rate is the most consequential result in this run, and it is a
-consequence of the evaluation environment rather than of model behavior: with no
-`NVIDIA_API_KEY` configured, `LLMDecisionEngine.recommend` never reaches the NIM endpoint and
-always returns `_blocked_result`. This is the "block rather than guess" contract functioning
-exactly as implemented — every blocked result still carries `requires_human_approval: true` and a
-`critical` safety finding, so the 0 human-approval violations in Section IV-C hold trivially rather
-than demonstrating anything about generated-content safety. Framed positively, this run is itself a
-100-scenario-equivalent (30 seeded + 4 golden, run through the credential-check path) demonstration
-that the fallback path is reliable and never silently degrades to an unapproved recommendation. It
-is not evidence about the quality, safety, or coverage of actual NIM-generated recommendations,
-which have not been measured here.
+**DEFINED_BUT_NEVER_CALLED:** A safety-critical function (identified by a configurable name set, e.g., `["validate_safety_gate", "requires_human_approval", "check_constraints"]`) is defined in the file but never appears in any other function's call set. Self-recursion does not count as being wired in.
 
-The golden-suite "4/4 passed" result for `llm_rag` (Section IV-B) should not be read as parity with
-`rule_based`. `sim/evaluation_harness.py::detect_regressions` applies the exact-match expectation
-check (`_validate_rule_expectation` — expected assignments, unmet units, coverage) only when
-`engine_name == "rule_based"`; for `llm_rag` it applies only the provider-independent safety
-contract and, where applicable, the `must_block` check. A blocked result with no assignments
-trivially satisfies "no duplicate assignment" and, for scenarios marked `must_block`, trivially
-satisfies "did produce a blocked recommendation." The two engines' pass rates in Section IV-B are
-therefore not evaluating the same claim.
+**GUARDED_OP_BYPASSES_GATE:** A function whose name or whose called operations match a configurable set of operation keywords (e.g., `["dispatch", "allocate", "execute", "commit"]`) runs without any safety-critical function appearing in its call set.
 
-Retrieval provenance (Section IV-D) shows that the retrieval step runs and returns evidence
-independently of whether the subsequent NIM call succeeds — all 34 `llm_rag` decisions carried
-evidence despite 100% of them being blocked, because `_retrieve_with_provenance` executes before
-the credential check in `LLMDecisionEngine.recommend`. The mean evidence confidence of 8.77% is
-low in absolute terms, reflecting `KnowledgeRetriever`'s lexical scoring over a small five-document
-corpus; a 0.00% assignment-level citation rate confirms that provenance in this implementation is
-attached at the decision level, not linked to individual resource assignments.
+The checker builds a per-function call map via `ast.walk`: for each `ast.FunctionDef`, it collects all `ast.Call` nodes to determine which functions are called within its body. It then cross-references this map against the safety-critical and operation-keyword configurations.
 
-## VI. Limitations
+---
 
-1. **The LLM comparison is confounded by missing credentials.** Every `llm_rag` result in this
-   run is a blocked fallback, not a generated recommendation. No claim about NIM-generated
-   decision quality, coverage, or latency-under-load can be drawn from Section IV-A's `llm_rag`
-   row; the row documents fallback behavior only.
-2. **Asymmetric golden-suite rigor.** As discussed in Section V, `llm_rag`'s golden-suite pass
-   rate reflects a strictly weaker check than `rule_based`'s. The current harness cannot, by
-   itself, establish output-level parity between the two engines.
-3. **A pre-existing configuration defect affects reproducibility of documented environment
-   variables.** `aegisops/core/config.py` sets `case_sensitive=True` with no environment-variable
-   prefix; several variables documented in `ENVIRONMENT.md`/`docs/DEPLOYMENT_GUIDE.md`
-   (`AEGISOPS_DEBUG`, `AEGISOPS_CORS_ORIGINS`, `RATE_LIMIT`) do not override the corresponding
-   settings at runtime, and `Field(..., env="SECRET_KEY")` is not a supported Pydantic v2
-   mechanism (confirmed by the deprecation warning in Section IV-E). This is outside this paper's
-   scope — it predates and is unrelated to the evaluation methodology — but it is disclosed
-   because it affects whether a reader can reproduce a *credentialed* re-run purely by setting the
-   documented variables.
-4. **Small, synthetic sample.** 30 seeded scenarios and 4 golden scenarios are used. Scenarios are
-   generated by `scenario_service.generate_scenario` and hand-authored fixtures, not real incident
-   data; per `knowledge/operational-limitations.md`, this system and its evaluation data are not
-   authorized for or representative of real emergency operations.
-5. **No statistical variance reporting.** `rule_based` is deterministic, so repeated runs at a
-   given seed are identical; latency figures are wall-clock single-run measurements on one machine,
-   not averaged over multiple trials, and should be read as indicative rather than precise.
-6. **Related Work is narrow by design.** Section II cites the sources directly relevant to and
-   verifiable for this specific system, not a systematic survey of crisis decision-support or
-   RAG literature.
+## 4. Evaluation
 
-## VII. Future Work
+### 4.1 Benchmark Design
 
-- Re-run the identical `sim/experiment_report.py` command with a valid `NVIDIA_API_KEY` to obtain
-  the first genuine `llm_rag` coverage/latency/safety-finding measurements, and report them
-  alongside — not in place of — the fallback-path results here.
-- Extend `sim/evaluation_harness.py` with an `llm_rag`-specific expectation check (analogous to
-  `_validate_rule_expectation`) so golden-suite pass rates measure comparable claims across
-  engines.
-- Attach evidence citations at the assignment level rather than the decision level, to raise the
-  0.00% assignment citation rate observed in Section IV-D and improve auditability of individual
-  resource assignments.
-- Fix the `case_sensitive`/env-prefix mismatch in `aegisops/core/config.py` identified in
-  Limitation 3, so documented deployment environment variables take effect as described.
-- Widen the seeded evaluation beyond 30 scenarios and, once the LLM path is credentialed and
-  therefore potentially non-deterministic, report variance across repeated runs.
-- Carry out the broader literature review scoped in `docs/RESEARCH_PROPOSAL.md` once credentialed
-  results are available to discuss against it.
+We evaluate against a labeled corpus of 15 self-contained Python source files organized into three categories:
+
+- **5 true-positive cases**, each containing exactly one seeded integrity failure: a scaffolded safety function, a defined-but-never-called gate, a guarded operation bypassing its gate, an intent/implementation mismatch, and a `NotImplementedError` stub claiming completion.
+- **5 clean cases**: correctly wired safety gates, fully implemented functions, and files with no safety-critical code. These must produce zero flags — they measure false-positive resistance.
+- **5 hard cases** designed to probe documented limitations: a gate called via variable alias, a gate called through a helper function, a legitimately empty abstract method, a decorator-based guard, and a gate called inside a conditional branch. These are labeled with what the analyzer *should* ideally detect; misses are measured honestly.
+
+The baseline is a naive grep approach that checks whether a safety-critical function name appears anywhere in the file as a string. This is not a strawman — it is the natural first approach and represents how a developer might manually search for gate usage.
+
+### 4.2 Results
+
+| Metric          | Naive Baseline | Analyzer |
+|-----------------|----------------|----------|
+| True positives  | 0              | 5        |
+| False positives | 0              | 4        |
+| False negatives | 6              | 1        |
+| True negatives  | 9              | 5        |
+| Precision       | n/a            | 0.556    |
+| Recall          | 0.000          | 0.833    |
+| MCC             | 0.000          | 0.389    |
+
+MCC is our headline metric: the corpus is small (15 scenarios) and class-imbalanced, making accuracy and F1 potentially misleading.
+
+### 4.3 Analysis
+
+The baseline achieves zero recall because a safety-critical function's name always appears in its own `def` line. String matching cannot distinguish a function that is *defined* from one that is *called*. This is not a contrived limitation — it is the fundamental reason AST-level analysis is necessary.
+
+The analyzer resolves all 10 easy scenarios correctly (5 true positives, 5 clean files with no false alarms). Errors are concentrated entirely in the 5 hard cases: 4 false positives and 1 false negative.
+
+Each error corresponds to a limitation documented before evaluation:
+
+- **Alias resolution** (hard case: gate called via variable alias) — the checker tracks direct `ast.Call` names only; reassignment to a variable loses the identity.
+- **Transitive call resolution** (hard case: gate called through a helper) — intra-file only; if `helper()` calls `validate_gate()` and `dispatch()` calls `helper()`, the checker does not resolve the transitive chain.
+- **Abstract method awareness** (hard case: legitimately empty abstract method) — a function with only `raise NotImplementedError()` is flagged as scaffolded regardless of `@abstractmethod` decorator.
+- **Decorator-based guards** (hard case: decorator applies the safety check) — the checker examines call-set contents, not decorator semantics.
+
+The error profile skews toward false positives (4) rather than false negatives (1). For a safety-critical review tool, this is the appropriate bias: a false alarm costs a developer one manual review, while a missed integrity violation ships an unguarded operation to production.
+
+---
+
+## 5. Limitations
+
+We document five known limitations explicitly, as transparency about tool boundaries is essential for responsible deployment:
+
+1. **Intra-file only.** The analyzer does not resolve cross-module imports or calls. A safety gate defined in `gates.py` and called from `engine.py` is invisible to the current analysis.
+2. **No alias resolution.** If a safety-critical function is assigned to a variable (`check = validate_gate`) and called via the variable, the call is not tracked.
+3. **No transitive call resolution.** Safety checks invoked indirectly through helper functions are not detected as wired.
+4. **No control-flow or ordering analysis.** The checker verifies call-set presence ("is the gate called somewhere in this function?"), not execution ordering ("does the gate run *before* the guarded operation?").
+5. **No decorator semantics.** Decorator-based guards (e.g., `@requires_approval`) are not recognized as safety checks.
+
+These limitations are inherent to the chosen approach (lightweight AST-only analysis with no external dependencies). Addressing them would require dataflow analysis, cross-module resolution, or decorator introspection — each a substantial extension that we leave to future work.
+
+---
+
+## 6. Discussion
+
+### 6.1 Practical Implications
+
+The IIA is designed as a pre-merge review aid, not a replacement for comprehensive testing. Its value proposition is catching a specific, dangerous class of failure that standard CI pipelines miss: code that compiles and passes existing tests but contains unwired safety paths. In a development workflow using AI coding agents, running the analyzer as a post-generation check adds a verification layer between agent output and human review.
+
+### 6.2 Relationship to Broader AI Safety
+
+The silent integrity failure pattern extends beyond coding agents. Any AI system that produces structured artifacts (infrastructure configurations, policy documents, safety protocols) can exhibit the same mode: structurally complete output with functionally disconnected critical components. The detection approach — comparing stated structure against actual wiring — generalizes to other domains where "looks right" and "works right" can diverge.
+
+### 6.3 Why Not an ML-Based Approach?
+
+A natural question is whether a learned model (e.g., a code LLM fine-tuned on integrity failures) would perform better than AST heuristics. We deliberately chose deterministic static analysis for three reasons: (1) reproducibility — the tool produces identical results on identical inputs with no stochastic variation, (2) transparency — every flag traces to a specific AST-level observation that a developer can verify, and (3) trust calibration — using an ML model to verify ML-generated code introduces a circularity that undermines confidence in the verification.
+
+---
+
+## 7. Conclusion
+
+We presented the Implementation Integrity Analyzer, a static analysis tool that detects silent implementation integrity failures in AI-generated code. Against a labeled corpus of 15 scenarios, the analyzer achieves MCC 0.389 compared to 0.000 for a naive string-matching baseline, with recall of 0.833 and a conservative error profile appropriate for safety-critical review.
+
+The tool, benchmark corpus, labeled scenarios, and all results are open-source and fully reproducible at `https://github.com/Avnish1505/aegisops-ai`.
+
+The contribution is modest in scale but honest in evaluation. We believe that transparent, reproducible benchmarks — including clear documentation of what the tool cannot do — serve the AI safety community better than inflated claims on curated test sets.
+
+---
 
 ## References
 
-[1] P. Lewis, E. Perez, A. Piktus, F. Petroni, V. Karpukhin, N. Goyal, H. Küttler, M. Lewis,
-    W. Yih, T. Rocktäschel, S. Riedel, and D. Kiela, "Retrieval-Augmented Generation for
-    Knowledge-Intensive NLP Tasks," in *Advances in Neural Information Processing Systems*, vol.
-    33, 2020, pp. 9459–9474.
+1. Jain, N. et al. "Confident and Wrong: Silent Semantic Failures in Coding Agents." Snowflake AI Research, 2026.
+2. "AIRA: AI-Induced Risk Audit — Constitutional AI Governance Framework." 2026.
+3. "What Breaks When LLMs Code?" IEEE/ACM ASE, 2026.
+4. "ClayBuddy: Non-Adversarial Failure Evaluation for AI Coding Agents." 2026.
+5. "Detecting Silent Failures in Multi-Agentic AI Trajectories." IBM Research, ICPE 2026.
+6. Gebert, D. "Ponytail: Behavioral Constraints for AI Coding Agents." GitHub, 2025.
+7. Block. "Goose: Open-Source Autonomous Coding Agent." Linux Foundation Agentic AI Foundation, 2026.
 
-[2] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, and
-    I. Polosukhin, "Attention Is All You Need," in *Advances in Neural Information Processing
-    Systems*, vol. 30, 2017, pp. 5998–6008. Available: https://arxiv.org/abs/1706.03762
+---
 
-[3] NVIDIA Corporation, "NVIDIA NIM Microservices for Accelerated AI Inference." Available:
-    https://www.nvidia.com/en-us/ai-data-science/products/nim-microservices/
-
-[4] NVIDIA Corporation, "Llama-3.1-8B-Instruct NIM," NGC Catalog. Available:
-    https://catalog.ngc.nvidia.com/orgs/nim/teams/meta/containers/llama-3.1-8b-instruct
-
-[5] S. Ramírez, "FastAPI." Available: https://fastapi.tiangolo.com/
-
-[6] Pydantic Services Inc., "Pydantic Documentation." Available: https://docs.pydantic.dev/latest/
-
-[7] M. Bayer, "SQLAlchemy" and "Alembic." Available: https://www.sqlalchemy.org/ and
-    https://alembic.sqlalchemy.org/
-
-[8] Prometheus Authors, "Prometheus Python Client." Available:
-    https://github.com/prometheus/client_python
-
-[9] L. Savaete, "slowapi: A rate limiter for Starlette and FastAPI." Available:
-    https://github.com/laurentS/slowapi
-
-[10] AegisOps AI project documentation: `docs/ROADMAP.md`, `docs/SECURITY_THREAT_MODEL.md`,
-     `docs/RESEARCH_PROPOSAL.md`, `knowledge/human-approval.md`, `knowledge/safety-gates.md`,
-     `knowledge/operational-limitations.md`, `knowledge/incident-triage.md`,
-     `knowledge/escalation-protocol.md` (internal, this repository).
+*Submitted as a technical report. The authors welcome reproduction, critique, and extension of this work.*

@@ -1,0 +1,117 @@
+{
+  "tp_scaffolded_safety_gate.py": {
+    "category": "true_positive",
+    "description": "The gate is correctly wired (called before the operation) but its body is scaffolded (`pass`), so it never actually validates anything.",
+    "expected_findings": ["scaffolded"],
+    "safety_critical_names": ["validate_safety_gate"],
+    "operation_keywords": ["execute"]
+  },
+  "tp_gate_never_called.py": {
+    "category": "true_positive",
+    "description": "The safety gate is fully implemented but is never called by anything else in the file.",
+    "expected_findings": ["defined_but_never_called"],
+    "safety_critical_names": ["validate_deployment_safety_gate"],
+    "operation_keywords": ["dispatch", "allocate", "commit"]
+  },
+  "tp_guarded_op_bypasses_gate.py": {
+    "category": "true_positive",
+    "description": "The gate is implemented and called elsewhere, but the function that dispatches resources never calls it.",
+    "expected_findings": ["guarded_op_bypasses_gate"],
+    "safety_critical_names": ["validate_safety_gate"],
+    "operation_keywords": ["dispatch"]
+  },
+  "tp_intent_mismatch.py": {
+    "category": "true_positive",
+    "description": "The docstring claims bcrypt password encryption and a confirmation email; the implementation does neither (it stores the raw password in a dict).",
+    "expected_findings": ["intent_mismatch"],
+    "safety_critical_names": [],
+    "operation_keywords": []
+  },
+  "tp_not_implemented_claims_complete.py": {
+    "category": "true_positive",
+    "description": "The docstring claims the audit logger is 'fully implemented and production-ready'; the body is a bare NotImplementedError stub. This single seeded bug legitimately trips two independent signals (scaffold detector and intent-consistency check) rather than one, which is expected and not double-counted.",
+    "expected_findings": ["scaffolded", "intent_mismatch"],
+    "safety_critical_names": [],
+    "operation_keywords": []
+  },
+  "clean_gate_wired_correctly.py": {
+    "category": "clean",
+    "description": "A textbook correctly-wired gate: implemented, and called before the guarded operation runs.",
+    "expected_findings": [],
+    "safety_critical_names": ["validate_payment_safety_gate"],
+    "operation_keywords": ["commit"]
+  },
+  "clean_fully_implemented_module.py": {
+    "category": "clean",
+    "description": "No safety-critical code at all; both functions are fully implemented.",
+    "expected_findings": [],
+    "safety_critical_names": [],
+    "operation_keywords": []
+  },
+  "clean_multiple_gates_all_wired.py": {
+    "category": "clean",
+    "description": "Two safety gates, both implemented and both called before the guarded operation runs.",
+    "expected_findings": [],
+    "safety_critical_names": ["validate_identity_gate", "validate_risk_gate"],
+    "operation_keywords": ["allocate"]
+  },
+  "clean_no_safety_critical_code.py": {
+    "category": "clean",
+    "description": "Plain utility functions with no gates and no critical operations configured; must not be flagged.",
+    "expected_findings": [],
+    "safety_critical_names": [],
+    "operation_keywords": []
+  },
+  "clean_operation_with_gate_and_extra_checks.py": {
+    "category": "clean",
+    "description": "The guarded operation calls an unrelated helper first and then the gate; the gate is still present in its call set, so this must not be flagged.",
+    "expected_findings": [],
+    "safety_critical_names": ["validate_shutdown_safety_gate"],
+    "operation_keywords": ["execute"]
+  },
+  "hard_gate_called_via_alias.py": {
+    "category": "hard",
+    "description": "The gate is genuinely enforced, but only through a local alias (`gate = validate_safety_gate; gate(x)`). Ideal ground truth is clean.",
+    "expected_findings": [],
+    "safety_critical_names": ["validate_safety_gate"],
+    "operation_keywords": ["allocate"],
+    "known_limitation": "no_aliasing",
+    "note": "The analyzer is expected to produce a FALSE POSITIVE here (both DEFINED_BUT_NEVER_CALLED and GUARDED_OP_BYPASSES_GATE), because its call map is name-based: `gate = validate_safety_gate` is an assignment, not a call, so the alias breaks the link entirely."
+  },
+  "hard_gate_called_through_helper.py": {
+    "category": "hard",
+    "description": "The gate is genuinely enforced, but indirectly: the guarded operation calls a `preflight_check` helper, which calls the gate. Ideal ground truth is clean.",
+    "expected_findings": [],
+    "safety_critical_names": ["validate_safety_gate"],
+    "operation_keywords": ["commit"],
+    "known_limitation": "no_transitive_call_resolution",
+    "note": "The analyzer is expected to produce a FALSE POSITIVE (GUARDED_OP_BYPASSES_GATE on commit_deployment), because it only looks at a function's own direct call set, not calls made transitively through a helper it calls."
+  },
+  "hard_legitimately_empty_abstract_method.py": {
+    "category": "hard",
+    "description": "An `@abstractmethod` with an `...` body is a legitimate interface stub, not a real scaffolding bug; the concrete subclass implements it. Ideal ground truth is clean.",
+    "expected_findings": [],
+    "safety_critical_names": [],
+    "operation_keywords": [],
+    "known_limitation": "no_abstractmethod_awareness",
+    "note": "The analyzer is expected to produce a FALSE POSITIVE (scaffold: ellipsis, on the abstract `send`), because the scaffold detector classifies body shape only and has no notion of `@abstractmethod`/ABCs."
+  },
+  "hard_decorator_based_guard.py": {
+    "category": "hard",
+    "description": "The operation is genuinely guarded, but through a `@requires_approval` decorator that calls the gate on the caller's behalf, not through a direct call in the operation's own body. Ideal ground truth is clean.",
+    "expected_findings": [],
+    "safety_critical_names": ["check_approval"],
+    "operation_keywords": ["allocate"],
+    "known_limitation": "no_decorator_awareness",
+    "note": "The analyzer is expected to produce a FALSE POSITIVE (GUARDED_OP_BYPASSES_GATE on allocate_funds), because a decorator's enforcement is invisible to the decorated function's own call set."
+  },
+  "hard_gate_called_inside_wrong_branch.py": {
+    "category": "hard",
+    "description": "The gate is called only on the dry_run branch; the real maintenance path never validates it. This is a genuine bug.",
+    "expected_findings": ["guarded_op_bypasses_gate"],
+    "safety_critical_names": ["validate_safety_gate"],
+    "operation_keywords": ["execute"],
+    "known_limitation": "no_control_flow_analysis",
+    "note": "The analyzer is expected to MISS this (false negative), because it only checks whether the gate's name appears anywhere in the function's call set, with no reachability or branch analysis to see that the real execution path skips it."
+  }
+}
