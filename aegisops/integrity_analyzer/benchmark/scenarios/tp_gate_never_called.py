@@ -1,7 +1,7 @@
 """Validate the deployment safety gate, then notify the team."""
 
 
-def validate_deployment_safety_gate(build):
+def validate_deployment_safety_gate(build: dict[str, object]) -> bool:
     if not build.get("tests_passed"):
         return False
     if not build.get("security_scan_clean"):
@@ -9,6 +9,6 @@ def validate_deployment_safety_gate(build):
     return True
 
 
-def notify_team(build):
+def notify_team(build: dict[str, object]) -> bool:
     print(f"Build {build['id']} is ready")
     return True

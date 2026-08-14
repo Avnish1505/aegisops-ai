@@ -60,6 +60,7 @@ import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypedDict, cast
 
 from aegisops.integrity_analyzer.api import analyze_file
 from aegisops.integrity_analyzer.benchmark.naive_baseline import naive_grep_baseline
@@ -80,6 +81,29 @@ INTENT_CONSISTENCY_THRESHOLD = 0.4
 
 INTENT_MISMATCH_FINDING = "intent_mismatch"
 SCAFFOLDED_FINDING = "scaffolded"
+
+
+class ScenarioLabel(TypedDict):
+    """One entry from ``labels.json``: a scenario file's ground truth and config.
+
+    ``labels.json`` entries may carry additional documentation-only keys
+    (``known_limitation``, ``note``) that this harness never reads; they are
+    intentionally omitted here.
+    """
+
+    category: str
+    description: str
+    expected_findings: list[str]
+    safety_critical_names: list[str]
+    operation_keywords: list[str]
+
+
+class ConsistencyReport(TypedDict):
+    """The shape returned by ``consistency_report.build_consistency_report``."""
+
+    matched_keywords: list[str]
+    unmatched_keywords: list[str]
+    consistency_score: float
 
 
 @dataclass(frozen=True)
@@ -145,12 +169,13 @@ class ConfusionMatrix:
         }
 
 
-def load_labels() -> dict[str, dict[str, object]]:
+def load_labels() -> dict[str, ScenarioLabel]:
     """Load the scenario ground truth from ``labels.json``."""
-    return json.loads(LABELS_PATH.read_text(encoding="utf-8"))
+    raw: object = json.loads(LABELS_PATH.read_text(encoding="utf-8"))
+    return cast(dict[str, ScenarioLabel], raw)
 
 
-def run_analyzer(path: Path, config: dict[str, object]) -> list[str]:
+def run_analyzer(path: Path, config: ScenarioLabel) -> list[str]:
     """Run the scaffold detector, wiring checker, and intent-consistency check on one file."""
     parsed = analyze_file(path)
     findings: list[str] = []
@@ -160,8 +185,8 @@ def run_analyzer(path: Path, config: dict[str, object]) -> list[str]:
 
     wiring_findings = check_safety_wiring(
         parsed,
-        safety_critical_names=config.get("safety_critical_names", []),
-        operation_keywords=config.get("operation_keywords", []),
+        safety_critical_names=config["safety_critical_names"],
+        operation_keywords=config["operation_keywords"],
     )
     findings.extend(sorted({finding.failure_mode.value for finding in wiring_findings}))
 
@@ -170,17 +195,17 @@ def run_analyzer(path: Path, config: dict[str, object]) -> list[str]:
         keywords = parse_intent(intent_text)
         identifiers = extract_identifiers(parsed)
         matched, unmatched = match_keywords(keywords, identifiers)
-        report = build_consistency_report(matched, unmatched)
+        report = cast(ConsistencyReport, build_consistency_report(matched, unmatched))
         if report["consistency_score"] < INTENT_CONSISTENCY_THRESHOLD:
             findings.append(INTENT_MISMATCH_FINDING)
 
     return findings
 
 
-def run_scenario(filename: str, config: dict[str, object]) -> ScenarioResult:
+def run_scenario(filename: str, config: ScenarioLabel) -> ScenarioResult:
     path = SCENARIOS_DIR / filename
     analyzer_findings = run_analyzer(path, config)
-    baseline_findings = naive_grep_baseline(path, config.get("safety_critical_names", []))
+    baseline_findings = naive_grep_baseline(path, config["safety_critical_names"])
 
     return ScenarioResult(
         filename=filename,
