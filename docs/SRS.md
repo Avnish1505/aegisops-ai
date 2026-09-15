@@ -4,7 +4,7 @@
 
 AegisOps AI is a research and portfolio application for **synthetic** crisis-allocation decision support. It accepts a bounded scenario, generates an advisory allocation, and presents the result for human review. It does not connect to dispatch, contact responders, publish communications, or execute an operational action.
 
-The implemented system includes a React operations console, a FastAPI API, a deterministic allocation engine, an optional NVIDIA NIM-backed advisory engine, local Markdown knowledge retrieval, and SQLAlchemy/Alembic persistence definitions. The current HTTP workflow does not persist scenarios, decisions, approvals, or audit entries.
+The implemented system includes a React operations console, a FastAPI API, a deterministic allocation engine, an optional NVIDIA NIM-backed advisory engine, local Markdown knowledge retrieval, and SQLAlchemy/Alembic persistence definitions. The HTTP workflow persists each decision, the operator's approve/reject disposition, and a corresponding audit log entry; it does not persist the underlying scenario or its incident/resource records.
 
 ## 2. Functional requirements
 
@@ -19,7 +19,7 @@ The implemented system includes a React operations console, a FastAPI API, a det
 | FR-07 | A critical incident with unmet demand shall produce `blocked`; high-severity unmet demand shall produce a review finding. |
 | FR-08 | Decision endpoints shall require at least the `OPERATOR` role. The currently implemented bearer token is a development role token, not production identity verification. |
 | FR-09 | The optional `llm_rag` engine shall retrieve up to three local knowledge documents, request JSON from NVIDIA NIM, validate it as a `DecisionResult`, and block after two failed attempts or missing credentials. |
-| FR-10 | The web console shall generate and inspect scenarios, request an advisory, display routes/findings/trace, and allow a local-only approve/reject indication. |
+| FR-10 | The web console shall generate and inspect scenarios, request an advisory, display routes/findings/trace, and record the operator's approve/reject disposition (with a reason) to the backend audit log via `POST /api/v1/decisions/{id}/disposition`. |
 
 ## 3. Non-functional requirements and constraints
 
@@ -32,7 +32,7 @@ The implemented system includes a React operations console, a FastAPI API, a det
 
 ## 4. Explicit exclusions
 
-No implemented endpoint stores an approval or audit event, creates users, authenticates JWTs, uses the database, dispatches resources, integrates CAD/911 systems, or guarantees LLM factuality. The database schema and domain approval fields are supporting definitions, not a complete approval workflow.
+No implemented endpoint creates users, authenticates JWTs, dispatches resources, integrates CAD/911 systems, or guarantees LLM factuality. Decision, approval, and audit persistence exist (`POST /api/v1/decisions` and `POST /api/v1/decisions/{id}/disposition`), but there is no endpoint to list or retrieve past decisions/approvals — read access to decision history is not yet implemented.
 
 ## 5. Acceptance evidence
 

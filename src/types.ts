@@ -58,4 +58,21 @@ export interface Decision {
   safety_findings: SafetyFinding[]
   advisory_confidence: number
   decision_trace: string[]
+  // Set by POST /api/v1/decisions on every response — required to record a disposition.
+  decision_id: number
+}
+
+export type SelectedEntity =
+  | { kind: 'incident'; entity: Incident }
+  | { kind: 'resource'; entity: Resource }
+  | null
+
+export type DispositionAction = 'approve' | 'reject'
+
+/** Persisted result of POST /api/v1/decisions/{id}/disposition. */
+export interface DispositionResult {
+  decision_id: number
+  disposition_id: number
+  action: DispositionAction
+  timestamp: string
 }
