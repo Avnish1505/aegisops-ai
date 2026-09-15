@@ -8,10 +8,14 @@ ORM/migration definitions, tests, Docker runtime, CI quality checks, and the cor
 
 ## Phase 2 — Evidence and human workflow
 
-Implement source provenance, a connected PostgreSQL persistence layer, a server-side operator
-approval/rejection workflow, production identity/RBAC, immutable decision records, scenario
-fixtures, and evaluation dashboards. The existing database models and browser-only disposition are
-not this workflow.
+The server-side operator approval/rejection workflow is implemented: `POST /api/v1/decisions`
+persists each decision, and `POST /api/v1/decisions/{id}/disposition` records the operator's
+approve/reject action with a reason to an immutable audit log, enforcing that a `blocked` decision
+cannot be approved. The operations console now calls this endpoint directly rather than only
+holding local state. Remaining for this phase: source provenance surfaced in the UI, a connected
+PostgreSQL persistence layer (currently SQLite), production identity/RBAC (currently a development
+role token), a read endpoint for decision/approval history, scenario fixtures, and evaluation
+dashboards.
 
 ## Phase 3 — Constrained AI and simulation
 
