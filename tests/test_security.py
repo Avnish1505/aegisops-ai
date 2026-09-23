@@ -114,7 +114,7 @@ def test_invalid_json():
 
 def test_health_endpoints_no_sensitive_info():
     """Test that health endpoints don't leak sensitive information."""
-    endpoints = ["/health/live", "/health/ready", "/health"]
+    endpoints = ["/health/live", "/health/ready"]
     for endpoint in endpoints:
         response = client.get(endpoint)
         assert response.status_code == 200

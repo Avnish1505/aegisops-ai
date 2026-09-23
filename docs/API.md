@@ -25,4 +25,5 @@ Responses contain `assignments`, `unmet_requirements`, `safety_findings`, `decis
 `advisory_confidence`, and pending approval fields. Confidence represents allocation coverage only,
 not outcome probability. Every response has `X-Request-ID`; callers may supply one for trace
 correlation. Unexpected errors use a generic 500 envelope and do not expose internal exception
-text. `/health`, `/scenario`, and `/simulate` remain undocumented compatibility aliases.
+text. The prototype aliases `/health`, `/scenario`, and `/simulate` were removed and return 404
+(`tests/test_api.py::test_legacy_prototype_routes_are_removed`).

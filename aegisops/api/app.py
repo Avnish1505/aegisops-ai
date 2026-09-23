@@ -257,30 +257,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "timestamp": audit.timestamp.isoformat(),
             }
 
-    @app.get("/health", include_in_schema=False)
-    @limiter.limit(active_settings.rate_limit)
-    async def legacy_health(request: Request) -> dict[str, str]:
-        return {"status": "ok"}
-
-    @app.get("/scenario", include_in_schema=False)
-    @limiter.limit(active_settings.rate_limit)
-    async def legacy_scenario(request: Request, seed: int | None = None) -> dict[str, object]:
-        return cast(dict[str, object], generate_scenario(seed=seed).model_dump(mode="json"))
-
-    @app.post("/simulate", include_in_schema=False)
-    async def legacy_simulate(
-        request: Request,
-        request_body: ScenarioDecisionRequest,
-        role: Annotated[UserRole, Depends(require_operator)],
-        engine: Literal["rule_based", "llm_rag"] = "rule_based",
-    ) -> dict[str, object]:
-        scenario: Scenario = (
-            request_body.scenario or generate_scenario(seed=request_body.seed)
-        )
-        del role
-        result: DecisionResult = engines[engine].recommend(scenario)
-        return cast(dict[str, object], result.model_dump(mode="json"))
-
     return app
 
 

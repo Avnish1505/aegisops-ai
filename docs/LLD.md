@@ -24,4 +24,4 @@ The engine blocks only for unmet critical requirements. It reports a high-priori
 
 ## HTTP details
 
-The `ScenarioDecisionRequest` accepts `scenario`, `seed` (0–2,147,483,647), and a retained compatibility field `max_turns` (1–20); `max_turns` does not affect the implemented engines. `engine` is a query parameter with `rule_based` default or `llm_rag`. `/health`, `/scenario`, and `/simulate` are undocumented compatibility aliases.
+The `ScenarioDecisionRequest` accepts `scenario`, `seed` (0–2,147,483,647), and a retained compatibility field `max_turns` (1–20); `max_turns` does not affect the implemented engines. `engine` is a query parameter with `rule_based` default or `llm_rag`. The former `/health`, `/scenario`, and `/simulate` aliases have been removed.

@@ -66,8 +66,10 @@ def test_decision_endpoint_rejects_unknown_engine() -> None:
     assert response.status_code == 422
 
 
-def test_legacy_simulate_endpoint_accepts_prototype_max_turns_field() -> None:
-    response = _client().post("/simulate", json={"seed": 3, "max_turns": 4})
 
-    assert response.status_code == 200
-    assert response.json()["engine"] == "rule_based_baseline_v1"
+def test_legacy_prototype_routes_are_removed() -> None:
+    client = _client()
+
+    assert client.get("/health").status_code == 404
+    assert client.get("/scenario?seed=3").status_code == 404
+    assert client.post("/simulate", json={"seed": 3}).status_code == 404
