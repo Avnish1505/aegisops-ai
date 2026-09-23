@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextvars
 import logging
 from collections.abc import MutableMapping
+from datetime import UTC, datetime
 from typing import Any
 
 from pythonjsonlogger.jsonlogger import JsonFormatter  # type: ignore[import-untyped]
@@ -14,7 +15,12 @@ request_id_var: contextvars.ContextVar[Any] = contextvars.ContextVar('request_id
 
 
 class RequestIDFormatter(JsonFormatter):  # type: ignore[misc]
-    """JSON log formatter that adds the request ID from context and renames fields."""
+    """JSON log formatter emitting ``timestamp`` (ISO 8601, UTC), ``level`` and ``request_id``."""
+
+    def __init__(self) -> None:
+        # Only real LogRecord attributes may appear in the format string; the JSON formatter
+        # copies each one by name, so a made-up name such as %(level)s is always null.
+        super().__init__("%(levelname)s %(name)s %(message)s")
 
     def add_fields(
         self,
@@ -23,13 +29,9 @@ class RequestIDFormatter(JsonFormatter):  # type: ignore[misc]
         message_dict: MutableMapping[str, Any],
     ) -> None:
         super().add_fields(log_record, record, message_dict)
-        # Rename standard fields to match our desired schema
-        if 'levelname' in log_record:
-            log_record['level'] = log_record.pop('levelname')
-        if 'asctime' in log_record:
-            log_record['timestamp'] = log_record.pop('asctime')
-        # Add the request ID from context
-        log_record['request_id'] = request_id_var.get()
+        log_record["timestamp"] = datetime.fromtimestamp(record.created, tz=UTC).isoformat()
+        log_record["level"] = log_record.pop("levelname")
+        log_record["request_id"] = request_id_var.get()
 
 
 def configure_logging(debug: bool) -> None:
@@ -46,8 +48,5 @@ def configure_logging(debug: bool) -> None:
         for handler in logger.handlers[:]:
             logger.removeHandler(handler)
         handler = logging.StreamHandler()
-        formatter = RequestIDFormatter(
-            '%(timestamp)s %(level)s %(name)s %(message)s'
-        )
-        handler.setFormatter(formatter)
+        handler.setFormatter(RequestIDFormatter())
         logger.addHandler(handler)
