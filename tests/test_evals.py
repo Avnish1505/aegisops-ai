@@ -160,3 +160,26 @@ def test_prf_and_quantile_basics() -> None:
 
     assert prf([Counter(tp=3, fp=1, fn=1)]) == (0.75, 0.75, 0.75)
     assert quantile([1.0, 2.0, 3.0, 4.0], 0.5) == 2.5
+
+
+def test_smoke_eval_replays_recorded_cassettes_without_a_key(tmp_path: Path) -> None:
+    """The CI smoke path: record once (here from the oracle), replay offline with no key."""
+    from aegisops.llm.cassette import CassetteTransport
+    from evals.run import smoke_rows, smoke_summary
+
+    rows = smoke_rows()
+    recorder = LLMClient(
+        Settings(environment="test", llm_api_key=SecretStr("k"), llm_max_retries=0),
+        http_client=httpx2.Client(
+            transport=CassetteTransport(tmp_path, "record", httpx2.MockTransport(_oracle))
+        ),
+    )
+    recorded = smoke_summary(run_reader(Reader(recorder, GAZETTEER), rows, workers=1), rows)
+    replayer = LLMClient(Settings(environment="test", llm_api_key=None, llm_max_retries=0,
+                                  llm_cassette_mode="replay", llm_cassette_dir=tmp_path))
+
+    replayed = smoke_summary(run_reader(Reader(replayer, GAZETTEER), rows, workers=1), rows)
+
+    assert replayer.available
+    assert replayed == recorded
+    assert replayed["failed_reads"] == 0
