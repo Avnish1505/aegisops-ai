@@ -5,6 +5,7 @@ import type {
   DispositionResult,
   ExerciseSummary,
   PlanningConstraint,
+  ReportDrafts,
   Scenario,
 } from './types'
 
@@ -90,6 +91,14 @@ export async function fetchDecision(scenario: Scenario, constraints: PlanningCon
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify({ scenario, constraints }),
+  })
+}
+
+/** Draft a SITREP and CAP alert for a stored decision (review only; never published). */
+export async function requestDrafts(decisionId: number): Promise<ReportDrafts> {
+  return request<ReportDrafts>(`/api/v1/decisions/${decisionId}/drafts`, {
+    method: 'POST',
+    headers: { ...(await authHeaders()) },
   })
 }
 

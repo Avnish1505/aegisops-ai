@@ -6,6 +6,7 @@ import { Panel } from './Panel'
 import { SectionHeader } from './SectionHeader'
 import { StatusBadge } from './StatusBadge'
 import { VerificationPanel } from './VerificationPanel'
+import { DraftsPanel } from './DraftsPanel'
 import { ActionButton, SecondaryButton } from './buttons'
 
 interface ResultsPanelProps {
@@ -200,6 +201,8 @@ export function ResultsPanel({ decision, onActiveAssignment }: ResultsPanelProps
       )}
 
       <VerificationPanel decision={decision} />
+
+      <DraftsPanel decisionId={decision.decision_id} />
 
       <Panel>
         <div className="flex items-center justify-between">

@@ -43,10 +43,11 @@ from aegisops.audit.event_log import (
     record_ref,
     verify_chain,
 )
+from aegisops.communication.reporter import Reporter
 from aegisops.core.config import Settings
 from aegisops.core.logging import configure_logging, request_id_var
 from aegisops.domain.canonical import sha256_hex
-from aegisops.domain.models import Scenario
+from aegisops.domain.models import DecisionResult, Scenario
 from aegisops.infrastructure.decision_store import record_decision, serialize_decision
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 from aegisops.infrastructure.retrieval_engine import RetrievalEngine
@@ -56,7 +57,7 @@ from aegisops.intake.gazetteer import DEFAULT_GAZETTEER, Gazetteer
 from aegisops.intake.reader import Reader, to_incident
 from aegisops.llm.client import LLMClient, LLMError, LLMOutputError
 from aegisops.planning.osrm import OSRMProvider
-from aegisops.planning.travel import StraightLineProvider, TravelTimeProvider
+from aegisops.planning.travel import StraightLineProvider, TravelTimeMatrix, TravelTimeProvider
 from backend.db.models import Alert, Approval, Base, Decision, Exercise, User
 
 logger = logging.getLogger(__name__)
@@ -179,6 +180,7 @@ def create_app(
     gazetteer = Gazetteer.load(DEFAULT_GAZETTEER)
     reader = Reader(llm, gazetteer)
     translator = ConstraintTranslator(llm, gazetteer)
+    reporter = Reporter(llm)
 
     def require_llm() -> None:
         if not llm.available:
@@ -343,6 +345,57 @@ def create_app(
                     detail="Decision not found.",
                 )
             return serialize_decision(decision)
+
+    @app.post("/api/v1/decisions/{decision_id}/drafts", tags=["decisions"])
+    async def draft_reports(
+        request: Request,
+        decision_id: int,
+        principal: Annotated[Principal, Depends(require_operator)],
+    ) -> dict[str, object]:
+        """SITREP and CAP 1.2 drafts for a stored decision. Returned for review only: nothing is
+        published, and each draft says whether every number in it passed the verifier."""
+        with session_factory.begin() as session:
+            decision = session.get(Decision, decision_id)
+            if decision is None or decision.scenario is None or decision.travel_times is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Decision not found."
+                )
+            scenario = Scenario.model_validate(decision.scenario)
+            plan = DecisionResult.model_validate(
+                {
+                    "scenario_id": decision.scenario_id,
+                    "engine": decision.engine,
+                    "status": decision.status,
+                    "assignments": decision.assignments or [],
+                    "unmet_requirements": decision.unmet_requirements or [],
+                    "safety_findings": decision.safety_findings or [],
+                    "coverage": decision.coverage,
+                    "decision_trace": decision.decision_trace,
+                }
+            )
+            drafts = reporter.draft(
+                plan, scenario, TravelTimeMatrix.model_validate(decision.travel_times)
+            )
+            append_event(
+                session,
+                actor=principal.sub,
+                type="drafts_generated",
+                payload={
+                    "decision_id": decision.id,
+                    "sitrep_sha256": sha256_hex(drafts.sitrep.document),
+                    "cap_sha256": sha256_hex(drafts.cap.document),
+                    "sitrep_numbers_verified": drafts.sitrep.numbers_verified,
+                    "cap_numbers_verified": drafts.cap.numbers_verified,
+                    "sources": [drafts.sitrep.source, drafts.cap.source],
+                },
+            )
+        return {
+            "decision_id": decision_id,
+            "sitrep": drafts.sitrep.model_dump(mode="json"),
+            "cap": drafts.cap.model_dump(mode="json"),
+            "llm_calls": len(drafts.records),
+            "cost_usd": sum(record.cost_usd for record in drafts.records),
+        }
 
     @app.post("/api/v1/decisions/{decision_id}/disposition", tags=["decisions"])
     async def create_disposition(

@@ -56,6 +56,24 @@ export interface ConstraintProposal {
   reasons: string[]
 }
 
+export interface ReportDraft {
+  kind: 'sitrep' | 'cap'
+  text: string
+  document: string
+  source: 'llm' | 'template'
+  numbers_verified: boolean
+  mismatches: string[]
+  published: false
+}
+
+export interface ReportDrafts {
+  decision_id: number
+  sitrep: ReportDraft
+  cap: ReportDraft
+  llm_calls: number
+  cost_usd: number
+}
+
 /** A saved scenario from GET /api/v1/exercises. */
 export interface ExerciseSummary {
   id: string
