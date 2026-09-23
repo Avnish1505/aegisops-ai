@@ -69,7 +69,7 @@ def decision_record_sha256(decision: Decision) -> str:
                 "drafts": decision.drafts,
                 "constraints": decision.constraints,
                 "travel_times": decision.travel_times,
-                "proposer_sub": getattr(decision, "proposer_sub", None),
+                "proposer_sub": decision.proposer_sub,
             }
         )
     )

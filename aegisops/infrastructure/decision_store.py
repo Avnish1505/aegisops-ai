@@ -13,7 +13,7 @@ from backend.db.models import Decision
 
 
 def record_decision(
-    session: Session, scenario: Scenario, outcome: DecisionOutcome, actor: str
+    session: Session, scenario: Scenario, outcome: DecisionOutcome, proposer: str
 ) -> Decision:
     """Store the full decision record and append its creation and verification events."""
     result = outcome.result
@@ -32,6 +32,7 @@ def record_decision(
         evidence=[item.model_dump(mode="json") for item in result.evidence],
         prompt_version=result.prompt_version,
         model_version=result.model_version,
+        proposer_sub=proposer,
         verification=outcome.verification.model_dump(mode="json"),
         drafts=[draft.model_dump(mode="json") for draft in outcome.drafts],
         constraints=[item.model_dump(mode="json") for item in outcome.constraints],
@@ -55,7 +56,7 @@ def record_decision(
     session.flush()
     append_event(
         session,
-        actor=actor,
+        actor=proposer,
         type="decision_created",
         payload={
             "decision_id": decision.id,
@@ -101,6 +102,7 @@ def serialize_decision(decision: Decision) -> dict[str, object]:
         "decision_trace": decision.decision_trace,
         "prompt_version": decision.prompt_version,
         "model_version": decision.model_version,
+        "proposer_sub": decision.proposer_sub,
         "verification": decision.verification,
         "drafts": decision.drafts,
         "constraints": decision.constraints,

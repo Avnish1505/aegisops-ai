@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from aegisops.application.roles import UserRole
 from aegisops.domain.models import Scenario
 from aegisops.planning.constraints import PlanningConstraint
 
@@ -37,3 +38,12 @@ class ErrorResponse(BaseModel):
 
     detail: str
     request_id: str | None = None
+
+
+class DevTokenRequest(BaseModel):
+    """Development-only identity for the console's proposer/approver demo."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sub: Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.@-]+$")]
+    role: UserRole

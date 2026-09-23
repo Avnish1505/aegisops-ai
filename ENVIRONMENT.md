@@ -10,10 +10,14 @@ names are case-insensitive. Unprefixed names such as `SECRET_KEY` or `DATABASE_U
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `AEGISOPS_ENVIRONMENT` | Runtime mode (`development`, `staging`, `production`) | `development` | No |
+| `AEGISOPS_ENVIRONMENT` | Runtime mode. `development` mounts `/api/v1/dev/token`; anything other than `development`/`test` refuses the default key | `production` | No |
 | `AEGISOPS_DEBUG` | Enable debug mode (`true` or `false`) | `false` | No |
 | `AEGISOPS_CORS_ORIGINS` | Comma-separated list of allowed CORS origins | `http://localhost:3000,http://localhost:5173` | No |
-| `AEGISOPS_SECRET_KEY` | Secret key reserved for future token signing (not used yet) | `CHANGE_ME_TO_A_COMPLEX_SECRET` | No |
+| `AEGISOPS_SECRET_KEY` | HS256 JWT signing key (≥32 bytes) | published development key | Yes, outside development |
+| `AEGISOPS_JWT_ALGORITHM` | `HS256` or `RS256` | `HS256` | No |
+| `AEGISOPS_JWT_JWKS_URL` | OIDC JWKS URL; required for `RS256` | — | With RS256 |
+| `AEGISOPS_JWT_ISSUER` / `AEGISOPS_JWT_AUDIENCE` | Required `iss` / `aud` claims when set | — | No |
+| `AEGISOPS_JWT_ROLE_CLAIM` | Claim holding the role (string or list) | `role` | No |
 | `AEGISOPS_RATE_LIMIT` | Rate limit for API endpoints (format: `X/minute` or `X/second`) | `100/minute` | No |
 | `AEGISOPS_DATABASE_URL` | Database connection string (SQLite by default) | `sqlite:///./aegisops.db` | No |
 

@@ -10,6 +10,7 @@ import { DetailPanel } from './components/DetailPanel'
 import { ResultsPanel } from './components/ResultsPanel'
 import { SituationOverview } from './components/SituationOverview'
 import { StatusIndicator } from './components/StatusIndicator'
+import { IdentitySwitcher } from './components/IdentitySwitcher'
 import { Panel } from './components/Panel'
 import { ActionButton } from './components/buttons'
 
@@ -63,9 +64,12 @@ function App() {
   return (
     <AppShell
       statusLine={
-        <StatusIndicator>
-          Research environment <span className="mx-1 text-ink-300">/</span> No automated dispatch
-        </StatusIndicator>
+        <span className="inline-flex flex-wrap items-center gap-4">
+          <StatusIndicator>
+            Research environment <span className="mx-1 text-ink-300">/</span> No automated dispatch
+          </StatusIndicator>
+          <IdentitySwitcher />
+        </span>
       }
     >
       <ScenarioControl

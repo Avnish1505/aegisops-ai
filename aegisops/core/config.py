@@ -8,12 +8,14 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+# Published development key: create_app refuses to use it outside development and tests.
+DEFAULT_SECRET_KEY = "aegisops-development-only-hs256-key-do-not-deploy"
 
 
 class Settings(BaseSettings):
@@ -21,7 +23,8 @@ class Settings(BaseSettings):
     version: str = "0.1.0"
     description: str = "Human-supervised crisis recommendation API"
 
-    environment: str = "development"
+    # Safe default: development-only features (such as minting tokens) need an explicit opt-in.
+    environment: str = "production"
     debug: bool = False
 
     api_v1_str: str = "/api/v1"
@@ -30,9 +33,14 @@ class Settings(BaseSettings):
         "http://localhost:5173",
     ]
 
-    secret_key: str = "CHANGE_ME_TO_A_COMPLEX_SECRET"
-    access_token_expire_minutes: int = 60 * 24 * 8
-    algorithm: str = "HS256"
+    secret_key: str = DEFAULT_SECRET_KEY
+    jwt_algorithm: Literal["HS256", "RS256"] = "HS256"
+    jwt_jwks_url: str | None = None
+    jwt_issuer: str | None = None
+    jwt_audience: str | None = None
+    jwt_role_claim: str = "role"
+    jwt_leeway_s: int = 30
+    dev_token_ttl_s: int = 8 * 60 * 60
 
     database_url: str = "sqlite:///./aegisops.db"
     knowledge_base_path: Path = REPOSITORY_ROOT / "knowledge"

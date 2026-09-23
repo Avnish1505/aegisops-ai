@@ -1,5 +1,5 @@
-"""Backward-compatible ASGI entry point for ``uvicorn backend.main:app``."""
+"""ASGI entry point: ``uvicorn backend.main:app``. Settings come from AEGISOPS_* variables."""
 
-from aegisops.api.app import app as application
+from aegisops.api.app import create_app
 
-app = application
+app = create_app()

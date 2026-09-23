@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from auth_helpers import bearer
 from fastapi.testclient import TestClient
 
 from aegisops.api.app import create_app
@@ -58,7 +59,9 @@ def test_app_retrieves_from_configured_knowledge_base(tmp_path: Path) -> None:
         Settings(environment="test", database_url="sqlite://", knowledge_base_path=tmp_path)
     )
 
-    response = TestClient(app).post("/api/v1/decisions?engine=llm_rag", json={"seed": 1})
+    response = TestClient(app, headers=bearer()).post(
+        "/api/v1/decisions?engine=llm_rag", json={"seed": 1}
+    )
 
     descriptions = [item["description"] for item in response.json()["evidence"]]
     assert descriptions and all("configured corpus marker" in text for text in descriptions)

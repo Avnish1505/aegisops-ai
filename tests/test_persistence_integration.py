@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
+from auth_helpers import bearer
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import Session
@@ -32,7 +33,8 @@ def _migrated_client(tmp_path: Path) -> tuple[TestClient, str]:
                     database_url=database_url,
                     cors_origins=("http://testserver",),
                 )
-            )
+            ),
+            headers=bearer("alice", "operator"),
         ),
         database_url,
     )
@@ -90,6 +92,7 @@ def test_persists_decision_approval_and_audit(tmp_path: Path) -> None:
     disposition_response = client.post(
         f"/api/v1/decisions/{decision_id}/disposition",
         json={"action": "approve", "reason": "Synthetic scenario reviewed."},
+        headers=bearer("bob", "approver"),
     )
 
     assert disposition_response.status_code == 200
@@ -120,6 +123,7 @@ def test_blocked_decision_cannot_be_approved_or_create_disposition(tmp_path: Pat
     disposition_response = client.post(
         f"/api/v1/decisions/{decision_id}/disposition",
         json={"action": "approve", "reason": "Attempted approval."},
+        headers=bearer("bob", "approver"),
     )
 
     assert disposition_response.status_code == 409
@@ -151,11 +155,10 @@ def test_get_decision_returns_full_record_and_approvals(tmp_path: Path) -> None:
     client.post(
         f"/api/v1/decisions/{decision_id}/disposition",
         json={"action": "approve", "reason": "Synthetic scenario reviewed."},
+        headers=bearer("bob", "approver"),
     )
 
-    response = client.get(
-        f"/api/v1/decisions/{decision_id}", headers={"Authorization": "Bearer role:viewer"}
-    )
+    response = client.get(f"/api/v1/decisions/{decision_id}", headers=bearer("vic", "viewer"))
 
     assert response.status_code == 200
     record = response.json()
@@ -174,9 +177,8 @@ def test_get_decision_returns_full_record_and_approvals(tmp_path: Path) -> None:
         "model_version",
     ):
         assert record[field] == created[field], field
-    assert [(a["action"], a["actor"]) for a in record["approvals"]] == [
-        ("approve", "development-operator")
-    ]
+    assert record["proposer_sub"] == "alice"
+    assert [(a["action"], a["actor"]) for a in record["approvals"]] == [("approve", "bob")]
 
 
 def test_stored_decision_replays_and_reverifies_to_the_same_result(tmp_path: Path) -> None:

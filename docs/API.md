@@ -17,9 +17,10 @@ non-repeatable synthetic scenario, plus optional typed `constraints` (`reserve`,
 `priority_boost`). `engine` is `solver` (CP-SAT) by default, `rule_based` (greedy baseline) or
 `llm_rag` (NVIDIA NIM). Every engine's plan is verified; the response carries `verification`
 (verdict and every check), `drafts` (the SITREP), `objective`, `reference_objective`,
-`solve_status` and `infeasibility`. Unknown fields are rejected. The route requires an `OPERATOR` or
-higher development role token (for example, `Authorization: Bearer operator`); this is not
-production authentication. Every response contains `requires_human_approval: true`. `status:
+`solve_status` and `infeasibility`. Unknown fields are rejected. The route requires a JWT bearer token
+whose role is `operator` or higher; the token's `sub` is recorded as the proposer. Approving
+requires `approver` or higher and returns 409 `proposer cannot approve` when the approver's `sub`
+is the proposer's. In development, `POST /api/v1/dev/token` with `{"sub", "role"}` mints a token. Every response contains `requires_human_approval: true`. `status:
 blocked` means a critical requirement is unmet or the NIM adapter safely failed; it is not a
 dispatch state.
 

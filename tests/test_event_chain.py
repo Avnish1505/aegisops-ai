@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
+from auth_helpers import bearer
 from fastapi.testclient import TestClient
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -29,7 +30,9 @@ def _client_with_history(tmp_path: Path) -> tuple[TestClient, str]:
     config = Config(str(Path(__file__).parents[1] / "backend" / "alembic.ini"))
     config.set_main_option("sqlalchemy.url", url)
     command.upgrade(config, "head")
-    client = TestClient(create_app(Settings(environment="test", database_url=url)))
+    client = TestClient(
+        create_app(Settings(environment="test", database_url=url)), headers=bearer()
+    )
     first = client.post("/api/v1/decisions", json={"seed": 3}).json()["decision_id"]
     client.post("/api/v1/decisions", json={"seed": 4})
     client.post(

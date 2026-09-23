@@ -43,7 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t aegisops-ci .
-      - run: docker run -d --name aegisops -p 8000:8000 aegisops-ci
+      - run: docker run -d --name aegisops -p 8000:8000 -e AEGISOPS_ENVIRONMENT=development aegisops-ci
       - name: Probe readiness and a seeded decision
         run: |
           for attempt in $(seq 1 30); do
@@ -51,10 +51,13 @@ jobs:
             sleep 2
           done
           ready=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/health/ready)
+          token=$(curl -s -X POST http://localhost:8000/api/v1/dev/token \
+            -H 'Content-Type: application/json' -d '{"sub": "ci", "role": "operator"}' \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])')
           decision=$(curl -s -o decision.json -w '%{http_code}' \
             -X POST http://localhost:8000/api/v1/decisions \
             -H 'Content-Type: application/json' \
-            -H 'Authorization: Bearer role:operator' \
+            -H "Authorization: Bearer $token" \
             -d '{"seed": 42}')
           echo "health/ready=$ready decisions=$decision"
           cat decision.json

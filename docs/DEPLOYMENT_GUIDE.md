@@ -38,7 +38,7 @@ All runtime configuration is via environment variables, defined in
 (variable names, defaults, and an example `.env`). At minimum, set for any non-local
 deployment:
 
-- `AEGISOPS_SECRET_KEY` — override the development default (reserved; not used for signing yet).
+- `AEGISOPS_SECRET_KEY` — HS256 JWT key; the server refuses to start with the development default outside `development`/`test`. For OIDC, set `AEGISOPS_JWT_ALGORITHM=RS256` and `AEGISOPS_JWT_JWKS_URL` instead.
 - `AEGISOPS_DATABASE_URL` — SQLite is the default and the only backend exercised by tests.
 - `AEGISOPS_ENVIRONMENT=production` and `AEGISOPS_DEBUG=false` — disables `/docs` and
   verbose debug logging.

@@ -1,3 +1,4 @@
+from auth_helpers import bearer
 from fastapi.testclient import TestClient
 
 from aegisops.api.app import create_app
@@ -13,7 +14,8 @@ def _client() -> TestClient:
                 cors_origins=("http://testserver",),
                 database_url="sqlite://",
             )
-        )
+        ),
+        headers=bearer(),
     )
 
 

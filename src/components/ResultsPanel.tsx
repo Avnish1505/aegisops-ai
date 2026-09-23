@@ -226,7 +226,7 @@ export function ResultsPanel({ decision, onActiveAssignment }: ResultsPanelProps
           </div>
           {disposition ? (
             <StatusBadge tone={disposition.action === 'approve' ? 'positive' : 'negative'}>
-              {disposition.action === 'approve' ? 'Approved by operator' : 'Rejected by operator'}
+              {disposition.action === 'approve' ? 'Approved' : 'Rejected'}
               {' · '}
               {new Date(disposition.timestamp).toLocaleString()}
             </StatusBadge>

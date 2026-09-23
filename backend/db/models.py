@@ -39,7 +39,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    username: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+    username: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -127,6 +127,8 @@ class Decision(Base):
     evidence: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
     prompt_version: Mapped[str | None] = mapped_column(String(100))
     model_version: Mapped[str | None] = mapped_column(String(200))
+    # Token subject of whoever requested the plan; that subject may never approve it.
+    proposer_sub: Mapped[str | None] = mapped_column(String(255))
     verification: Mapped[dict[str, object] | None] = mapped_column(JSON)
     drafts: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
     constraints: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)

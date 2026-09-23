@@ -12,9 +12,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from fastapi.testclient import TestClient
 
-from aegisops.api.app import app
+from aegisops.api.app import create_app
+from aegisops.core.config import Settings
 
-client = TestClient(app)
+client = TestClient(create_app(Settings(environment="test", database_url="sqlite://")))
 
 
 def make_request(endpoint: str) -> tuple[bool, float]:

@@ -27,7 +27,7 @@ def seed(database_url: str) -> int | None:
             return None
         scenario = generate_scenario(seed=DEMO_SEED)
         outcome = DecisionService({}, EuclideanProvider()).decide(scenario)
-        return record_decision(session, scenario, outcome, actor="seed").id
+        return record_decision(session, scenario, outcome, proposer="seed").id
 
 
 def main() -> None:

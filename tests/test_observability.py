@@ -7,10 +7,11 @@ from datetime import datetime
 
 from fastapi.testclient import TestClient
 
-from aegisops.api.app import app
+from aegisops.api.app import create_app
+from aegisops.core.config import Settings
 from aegisops.core.logging import RequestIDFormatter, request_id_var
 
-client = TestClient(app)
+client = TestClient(create_app(Settings(environment="test", database_url="sqlite://")))
 
 
 def test_request_id_header_present():

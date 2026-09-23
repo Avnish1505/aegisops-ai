@@ -18,12 +18,20 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from starlette.status import HTTP_422_UNPROCESSABLE_CONTENT, HTTP_500_INTERNAL_SERVER_ERROR
 
+from aegisops.api.auth import (
+    Principal,
+    TokenVerifier,
+    check_secret_configuration,
+    issue_dev_token,
+    require_operator,
+    require_viewer,
+)
 from aegisops.api.schemas import (
     DecisionDispositionRequest,
+    DevTokenRequest,
     ErrorResponse,
     ScenarioDecisionRequest,
 )
-from aegisops.api.security import require_operator, require_viewer
 from aegisops.application.decision_service import DecisionService
 from aegisops.application.roles import UserRole
 from aegisops.application.scenario_service import generate_scenario
@@ -35,6 +43,7 @@ from aegisops.audit.event_log import (
 )
 from aegisops.core.config import Settings
 from aegisops.core.logging import configure_logging, request_id_var
+from aegisops.domain.canonical import sha256_hex
 from aegisops.domain.models import Scenario
 from aegisops.infrastructure.decision_store import record_decision, serialize_decision
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
@@ -47,10 +56,14 @@ logger = logging.getLogger(__name__)
 
 
 def create_app(
-    settings: Settings | None = None, *, travel_provider: TravelTimeProvider | None = None
+    settings: Settings | None = None,
+    *,
+    travel_provider: TravelTimeProvider | None = None,
+    token_verifier: TokenVerifier | None = None,
 ) -> FastAPI:
     """Build the API with injected configuration for deterministic testing."""
     active_settings = settings or Settings()
+    check_secret_configuration(active_settings)
     configure_logging(active_settings.debug)
     app = FastAPI(
         title=active_settings.application_name,
@@ -80,6 +93,7 @@ def create_app(
     )
 
     app.state.settings = active_settings
+    app.state.token_verifier = token_verifier or TokenVerifier(active_settings)
     app.state.session_factory = session_factory
 
     # Rate limiting setup
@@ -177,7 +191,7 @@ def create_app(
     async def create_decision(
         request: Request,
         request_body: ScenarioDecisionRequest,
-        role: Annotated[UserRole, Depends(require_operator)],
+        principal: Annotated[Principal, Depends(require_operator)],
         engine: Literal["solver", "rule_based", "llm_rag"] = "solver",
     ) -> dict[str, object]:
         scenario: Scenario = (
@@ -186,16 +200,16 @@ def create_app(
         outcome = decision_service.decide(scenario, engine, request_body.constraints)
 
         with session_factory.begin() as session:
-            decision = record_decision(session, scenario, outcome, actor=role.value)
+            decision = record_decision(session, scenario, outcome, proposer=principal.sub)
             return serialize_decision(decision)
 
     @app.get("/api/v1/decisions/{decision_id}", tags=["decisions"])
     async def get_decision(
         request: Request,
         decision_id: int,
-        role: Annotated[UserRole, Depends(require_viewer)],
+        principal: Annotated[Principal, Depends(require_viewer)],
     ) -> dict[str, object]:
-        del role
+        del principal
         with session_factory() as session:
             decision = session.get(Decision, decision_id)
             if decision is None:
@@ -210,8 +224,14 @@ def create_app(
         request: Request,
         decision_id: int,
         request_body: DecisionDispositionRequest,
-        role: Annotated[UserRole, Depends(require_operator)],
+        principal: Annotated[Principal, Depends(require_operator)],
     ) -> dict[str, object]:
+        approving = request_body.action == "approve"
+        if approving and not principal.role.at_least(UserRole.APPROVER):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Approving requires the approver role or higher.",
+            )
         with session_factory.begin() as session:
             decision = session.get(Decision, decision_id)
             if decision is None:
@@ -219,25 +239,30 @@ def create_app(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Decision not found.",
                 )
-            if request_body.action == "approve" and decision.status == "blocked":
+            if approving and decision.status == "blocked":
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Blocked decisions cannot be approved.",
                 )
-            actor_name = f"development-{role.value}"
+            if approving and decision.proposer_sub == principal.sub:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="proposer cannot approve",
+                )
+            actor_name = principal.sub
             actor = session.query(User).filter_by(username=actor_name).one_or_none()
             if actor is None:
                 actor = User(
                     username=actor_name,
-                    email=f"{actor_name}@local.invalid",
-                    hashed_password="development-role-token",
+                    email=f"{sha256_hex(actor_name)[:32]}@identity.invalid",
+                    hashed_password="external-identity",
                 )
                 session.add(actor)
                 session.flush()
             approval = Approval(
                 decision_id=decision.id,
                 user_id=actor.id,
-                approved=request_body.action == "approve",
+                approved=approving,
             )
             session.add(approval)
             session.flush()
@@ -262,16 +287,27 @@ def create_app(
                 "timestamp": event.ts,
             }
 
+    if active_settings.environment == "development":
+
+        @app.post("/api/v1/dev/token", tags=["development"])
+        @limiter.limit(active_settings.rate_limit)
+        async def dev_token(request: Request, request_body: DevTokenRequest) -> dict[str, object]:
+            """Development only: mint a signed token for any subject and role."""
+            return {
+                "access_token": issue_dev_token(
+                    active_settings, request_body.sub, request_body.role
+                ),
+                "token_type": "bearer",
+                "expires_in": active_settings.dev_token_ttl_s,
+            }
+
     @app.get("/api/v1/audit/verify", tags=["audit"])
     async def verify_audit_chain(
         request: Request,
-        role: Annotated[UserRole, Depends(require_viewer)],
+        principal: Annotated[Principal, Depends(require_viewer)],
     ) -> dict[str, object]:
-        del role
+        del principal
         with session_factory() as session:
             return verify_chain(session).as_dict()
 
     return app
-
-
-app = create_app()

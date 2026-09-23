@@ -30,7 +30,7 @@ Without Docker (Python 3.11–3.13, Node 22):
 ```bash
 python3 -m venv venv && source venv/bin/activate && pip install -r requirements-dev.txt
 alembic -c backend/alembic.ini upgrade head
-AEGISOPS_DEBUG=true uvicorn backend.main:app --reload --port 8000
+AEGISOPS_ENVIRONMENT=development AEGISOPS_DEBUG=true uvicorn backend.main:app --reload --port 8000
 npm ci && npm run dev          # console on http://localhost:5173
 ```
 
@@ -49,10 +49,10 @@ Settings are read from `AEGISOPS_`-prefixed environment variables (`aegisops/cor
 | LLM engine (NVIDIA NIM) | ❌ **Not evaluated against a live model.** Every test uses a mocked HTTP response. Without `NVIDIA_API_KEY` it returns `blocked` | `tests/test_llm_decision_engine.py`; `tests/test_api.py::test_decision_endpoint_selects_llm_rag_engine` |
 | Retrieval | ⚠️ **Keyword hashing, not semantic search.** Tokens are hashed into 256 buckets and ranked by inner product | `aegisops/infrastructure/knowledge_retrieval.py`; `tests/test_knowledge_retrieval.py` |
 | Human decision | ✅ Approve/reject with a reason, written to an audit log. Blocked decisions return 409 | `tests/test_persistence_integration.py::test_blocked_decision_cannot_be_approved_or_create_disposition` |
-| Proposer ≠ approver | ❌ Not enforced yet; an `operator` can approve a decision they created | `aegisops/api/app.py` (`create_disposition`) |
+| Proposer ≠ approver | ✅ Each decision records the proposer's token subject; approving needs the `approver` role and the same subject gets 409 "proposer cannot approve" | `tests/test_auth.py::test_proposer_cannot_approve_their_own_decision` |
 | Decision record | ✅ Stores the input scenario and its SHA-256, the plan, verification report, SITREP, constraints, travel matrix, and prompt/model versions. A stored record replays and re-verifies to the same result | `tests/test_persistence_integration.py::test_stored_decision_replays_and_reverifies_to_the_same_result` |
 | Audit log integrity | ✅ Decisions, verifications and dispositions append to a hash-chained `events` table; each event also hashes the decision/approval row it created. `GET /api/v1/audit/verify` reports the first broken link, and editing any event column, deleting an event, or editing a decision or approval row is detected. ⚠️ Deleting the newest event is only detectable against an externally kept `head_hash` | `aegisops/audit/event_log.py`; `tests/test_event_chain.py` |
-| Auth | ⚠️ **Development only.** The bearer token *is* the role name (`viewer`, `operator`, `approver`, `admin`) | `aegisops/api/security.py`; `tests/test_roles.py` |
+| Auth | ✅ JWT bearer tokens with `sub` and `role`: HS256 with `AEGISOPS_SECRET_KEY`, or RS256 against an OIDC JWKS. The server refuses to start outside development with the published dev key. ⚠️ The console only has the development sign-in (`/api/v1/dev/token`, mounted only when `AEGISOPS_ENVIRONMENT=development`); no OIDC login flow is built | `aegisops/api/auth.py`; `tests/test_auth.py` |
 | Free-text intake / message drafting | ❌ No LLM intake or drafting. ⚠️ A deterministic SITREP template is generated and its numbers verified | `aegisops/communication/sitrep.py` |
 | Multi-agent | ❌ None. `backend/agents/roles.py` holds data-only role descriptions | `backend/agents/roles.py` |
 | Database | ⚠️ SQLite is the only backend exercised by tests and the container | `tests/test_persistence_integration.py`; `Dockerfile` |
