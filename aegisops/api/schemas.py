@@ -47,3 +47,11 @@ class DevTokenRequest(BaseModel):
 
     sub: Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.@-]+$")]
     role: UserRole
+
+
+class ReadReportRequest(BaseModel):
+    """One free-text field report (English, Hindi or Hinglish)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    report: Annotated[str, Field(min_length=3, max_length=4_000)]

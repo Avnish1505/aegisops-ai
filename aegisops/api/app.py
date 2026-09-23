@@ -30,6 +30,7 @@ from aegisops.api.schemas import (
     DecisionDispositionRequest,
     DevTokenRequest,
     ErrorResponse,
+    ReadReportRequest,
     ScenarioDecisionRequest,
 )
 from aegisops.application.decision_service import DecisionService
@@ -49,6 +50,9 @@ from aegisops.infrastructure.decision_store import record_decision, serialize_de
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 from aegisops.infrastructure.retrieval_engine import RetrievalEngine
 from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
+from aegisops.intake.gazetteer import DEFAULT_GAZETTEER, Gazetteer
+from aegisops.intake.reader import Reader, to_incident
+from aegisops.llm.client import LLMClient, LLMError, LLMOutputError
 from aegisops.planning.osrm import OSRMProvider
 from aegisops.planning.travel import StraightLineProvider, TravelTimeProvider
 from backend.db.models import Alert, Approval, Base, Decision, Exercise, User
@@ -61,6 +65,7 @@ def create_app(
     *,
     travel_provider: TravelTimeProvider | None = None,
     token_verifier: TokenVerifier | None = None,
+    llm_client: LLMClient | None = None,
 ) -> FastAPI:
     """Build the API with injected configuration for deterministic testing."""
     active_settings = settings or Settings()
@@ -167,6 +172,45 @@ def create_app(
         },
         travel_provider or _default_travel_provider(active_settings),
     )
+
+    llm = llm_client or LLMClient(active_settings)
+    reader = Reader(llm, Gazetteer.load(DEFAULT_GAZETTEER))
+
+    def require_llm() -> None:
+        if not llm.available:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="No LLM is configured (set AEGISOPS_LLM_API_KEY).",
+            )
+
+    @app.post("/api/v1/intake/read", tags=["intake"])
+    async def read_report(
+        request: Request,
+        request_body: ReadReportRequest,
+        principal: Annotated[Principal, Depends(require_operator)],
+    ) -> dict[str, object]:
+        """Free-text report -> grounded incident candidate (nothing is planned or stored)."""
+        del principal
+        require_llm()
+        try:
+            result = reader.read(request_body.report)
+        except (LLMError, LLMOutputError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Reader failed: {error}"
+            ) from error
+        incident = to_incident(result.candidate, "INC-preview")
+        return {
+            "candidate": result.candidate.model_dump(mode="json"),
+            "incident_preview": incident.model_dump(mode="json") if incident else None,
+            "llm": {
+                "model": result.record.model,
+                "prompt_version": result.record.prompt_version,
+                "input_tokens": result.record.input_tokens,
+                "output_tokens": result.record.output_tokens,
+                "latency_s": round(result.record.latency_s, 3),
+                "cost_usd": result.record.cost_usd,
+            },
+        }
 
     @app.get("/health/live", tags=["health"])
     @limiter.limit(active_settings.rate_limit)
