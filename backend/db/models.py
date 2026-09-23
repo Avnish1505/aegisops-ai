@@ -20,6 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from aegisops.application.roles import UserRole
+from backend.db.types import GeoPoint
 
 
 class Base(DeclarativeBase):
@@ -72,8 +73,8 @@ class Incident(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     type: Mapped[str] = mapped_column(String(50), nullable=False)
     severity: Mapped[str] = mapped_column(String(20), nullable=False)
-    location_x: Mapped[float] = mapped_column(nullable=False)
-    location_y: Mapped[float] = mapped_column(nullable=False)
+    # (lat, lon) WGS84; PostGIS geography on PostgreSQL.
+    location: Mapped[tuple[float, float]] = mapped_column(GeoPoint(), nullable=False)
     people_affected: Mapped[int] = mapped_column(nullable=False)
     reported_at_min: Mapped[int] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -82,7 +83,7 @@ class Incident(Base):
     __table_args__ = (
         Index("idx_incident_type", "type"),
         Index("idx_incident_severity", "severity"),
-        Index("idx_incident_location", "location_x", "location_y"),
+        Index("idx_incident_location", "location", postgresql_using="gist"),
     )
 
 

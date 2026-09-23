@@ -31,10 +31,11 @@ class TravelTimeProvider(Protocol):
     def matrix(self, scenario: Scenario) -> TravelTimeMatrix: ...
 
 
-class EuclideanProvider:
-    """Straight-line distance divided by each unit's speed; no road network."""
+class StraightLineProvider:
+    """Great-circle distance x road circuity at each unit's speed_kmh. No road network: this is
+    the degraded fallback when OSRM is unavailable, and the default for unit tests."""
 
-    name = "euclidean-v1"
+    name = "straight-line-v1"
 
     def matrix(self, scenario: Scenario) -> TravelTimeMatrix:
         return TravelTimeMatrix(
@@ -42,7 +43,7 @@ class EuclideanProvider:
             minutes={
                 resource.id: {
                     incident.id: travel_minutes(
-                        resource.location, incident.location, resource.eta_speed
+                        resource.location, incident.location, resource.speed_kmh
                     )
                     for incident in scenario.incidents
                 }

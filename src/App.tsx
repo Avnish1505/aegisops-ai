@@ -5,7 +5,7 @@ import { AppShell } from './components/AppShell'
 import { ScenarioControl } from './components/ScenarioControl'
 import { ErrorBanner } from './components/ErrorBanner'
 import { EmptyState } from './components/EmptyState'
-import { Grid } from './components/Grid'
+import { OperationalMap } from './components/OperationalMap'
 import { DetailPanel } from './components/DetailPanel'
 import { ResultsPanel } from './components/ResultsPanel'
 import { SituationOverview } from './components/SituationOverview'
@@ -107,12 +107,11 @@ function App() {
             <Panel>
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <h2 className="panel-heading">Operational coordinate plane</h2>
-                  <p className="mt-0.5 text-xs text-ink-500">Synthetic grid only — not geographic location data.</p>
+                  <h2 className="panel-heading">Operational map</h2>
+                  <p className="mt-0.5 text-xs text-ink-500">WGS84 positions on OpenStreetMap. Synthetic scenarios place random points in Lucknow.</p>
                 </div>
-                <span className="font-mono text-[10px] text-ink-500">X 0–100 / Y 0–100</span>
               </div>
-              <Grid
+              <OperationalMap
                 scenario={scenario}
                 decision={decision}
                 selected={selected}

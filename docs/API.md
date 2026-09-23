@@ -12,6 +12,9 @@ The canonical interactive OpenAPI definition is served at `/docs` in development
 | POST | `/api/v1/decisions/{id}/disposition` | Record an approve/reject with a reason |
 | GET | `/api/v1/audit/verify` | Walk the hash-chained event log; report the first broken link |
 
+Every location is WGS84 decimal degrees, `{"lat": 26.85, "lon": 80.95}`; resources carry
+`speed_kmh`, used only by the straight-line fallback when no road network is available.
+
 `POST /api/v1/decisions` accepts either a typed `scenario` or a `seed`; omitting both generates a
 non-repeatable synthetic scenario, plus optional typed `constraints` (`reserve`, `exclude_unit`,
 `priority_boost`). `engine` is `solver` (CP-SAT) by default, `rule_based` (greedy baseline) or

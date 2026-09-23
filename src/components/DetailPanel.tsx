@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { Assignment, Decision, Incident, Resource, SelectedEntity, UnmetRequirement } from '../types'
+import type { Assignment, Decision, Incident, Location, Resource, SelectedEntity, UnmetRequirement } from '../types'
 import { humanize, shortId } from '../lib/format'
 import { SeverityBadge } from './SeverityBadge'
 import { StatusBadge } from './StatusBadge'
@@ -18,8 +18,8 @@ function EntityHeader({ id, title, badge }: { id: string; title: string; badge: 
   )
 }
 
-function formatLocation(location: [number, number]) {
-  return `${location[0].toFixed(1)}, ${location[1].toFixed(1)}`
+function formatLocation(location: Location) {
+  return `${location.lat.toFixed(5)}, ${location.lon.toFixed(5)}`
 }
 
 /** Relates the selected incident to the decision, when one has been requested:
@@ -54,7 +54,7 @@ function IncidentDetail({ item, decision }: { item: Incident; decision: Decision
     <div className="space-y-4">
       <EntityHeader id={item.id} title={humanize(item.type)} badge={<SeverityBadge severity={item.severity} />} />
       <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-ink-200 pt-3 text-xs">
-        <Metric label="Grid coordinate" value={<span className="font-mono">{formatLocation(item.location)}</span>} />
+        <Metric label="Lat, lon (WGS84)" value={<span className="font-mono">{formatLocation(item.location)}</span>} />
         <Metric label="Reported" value={`T+${item.reported_at_min} min`} />
         <Metric label="People affected" value={<span className="text-lg font-semibold">{item.people_affected}</span>} />
         <Metric
@@ -83,8 +83,8 @@ function ResourceDetail({ item, decision }: { item: Resource; decision: Decision
         badge={<StatusBadge tone={item.available ? 'available' : 'neutral'}>{item.available ? 'Available' : 'Unavailable'}</StatusBadge>}
       />
       <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-ink-200 pt-3 text-xs">
-        <Metric label="Grid coordinate" value={<span className="font-mono">{formatLocation(item.location)}</span>} />
-        <Metric label="ETA speed" value={`${item.eta_speed.toFixed(1)} units/min`} />
+        <Metric label="Lat, lon (WGS84)" value={<span className="font-mono">{formatLocation(item.location)}</span>} />
+        <Metric label="Fallback speed" value={`${item.speed_kmh.toFixed(0)} km/h`} />
       </dl>
       {assignment && (
         <div className="border-t border-ink-200 pt-3">

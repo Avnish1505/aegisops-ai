@@ -12,3 +12,4 @@ dist/
 .DS_Store
 *.db
 .hypothesis/
+data/

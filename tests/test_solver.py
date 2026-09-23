@@ -6,7 +6,7 @@ from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
 from aegisops.planning.constraints import ExcludeUnit, PriorityBoost, ReserveConstraint, Zone
 from aegisops.planning.objective import plan_objective
 from aegisops.planning.solver import SolverDecisionEngine, SolveStatus, solve
-from aegisops.planning.travel import EuclideanProvider
+from aegisops.planning.travel import StraightLineProvider
 
 
 def _scenario(incidents: list[dict[str, object]], resources: list[dict[str, object]]) -> Scenario:
@@ -24,17 +24,17 @@ def _scenario(incidents: list[dict[str, object]], resources: list[dict[str, obje
 def _two_incidents_one_ambulance() -> Scenario:
     return _scenario(
         [
-            {"id": "INC-med", "type": "medical", "severity": "medium", "location": [1, 0],
-             "resources_needed": {"ambulance": 1}},
-            {"id": "INC-crit", "type": "medical", "severity": "critical", "location": [30, 0],
-             "resources_needed": {"ambulance": 1}},
+            {"id": "INC-med", "type": "medical", "severity": "medium",
+             "location": {"lat": 26.801, "lon": 80.9}, "resources_needed": {"ambulance": 1}},
+            {"id": "INC-crit", "type": "medical", "severity": "critical",
+             "location": {"lat": 26.83, "lon": 80.9}, "resources_needed": {"ambulance": 1}},
         ],
-        [{"id": "RES-amb", "type": "ambulance", "location": [0, 0]}],
+        [{"id": "RES-amb", "type": "ambulance", "location": {"lat": 26.8, "lon": 80.9}}],
     )
 
 
 def _solve(scenario: Scenario, constraints=()):  # type: ignore[no-untyped-def]
-    return solve(scenario, EuclideanProvider().matrix(scenario), constraints)
+    return solve(scenario, StraightLineProvider().matrix(scenario), constraints)
 
 
 def test_scarce_unit_goes_to_the_higher_severity_incident() -> None:
@@ -65,14 +65,14 @@ def test_excluded_unit_is_never_assigned() -> None:
 
 def test_reserve_keeps_units_idle_inside_the_zone() -> None:
     scenario = _scenario(
-        [{"id": "INC-1", "type": "medical", "severity": "high", "location": [0, 0],
-          "resources_needed": {"ambulance": 2}}],
+        [{"id": "INC-1", "type": "medical", "severity": "high",
+          "location": {"lat": 26.8, "lon": 80.9}, "resources_needed": {"ambulance": 2}}],
         [
-            {"id": "RES-near", "type": "ambulance", "location": [1, 1]},
-            {"id": "RES-far", "type": "ambulance", "location": [90, 90]},
+            {"id": "RES-near", "type": "ambulance", "location": {"lat": 26.801, "lon": 80.901}},
+            {"id": "RES-far", "type": "ambulance", "location": {"lat": 26.89, "lon": 80.99}},
         ],
     )
-    north = Zone(id="north", min_x=80, min_y=80, max_x=100, max_y=100)
+    north = Zone(id="north", min_lat=26.88, min_lon=80.98, max_lat=26.9, max_lon=81.0)
 
     result = _solve(scenario, [ReserveConstraint(resource_type="ambulance", count=1, zone=north)])
 
@@ -82,11 +82,11 @@ def test_reserve_keeps_units_idle_inside_the_zone() -> None:
 
 def test_conflicting_reserve_and_exclusion_are_reported_as_infeasible() -> None:
     scenario = _scenario(
-        [{"id": "INC-1", "type": "medical", "severity": "low", "location": [0, 0],
-          "resources_needed": {"ambulance": 1}}],
-        [{"id": "RES-1", "type": "ambulance", "location": [5, 5]}],
+        [{"id": "INC-1", "type": "medical", "severity": "low",
+          "location": {"lat": 26.8, "lon": 80.9}, "resources_needed": {"ambulance": 1}}],
+        [{"id": "RES-1", "type": "ambulance", "location": {"lat": 26.805, "lon": 80.905}}],
     )
-    everywhere = Zone(id="all", min_x=0, min_y=0, max_x=100, max_y=100)
+    everywhere = Zone(id="all", min_lat=26.8, min_lon=80.9, max_lat=26.9, max_lon=81.0)
     reserve = ReserveConstraint(resource_type="ambulance", count=1, zone=everywhere)
     exclude = ExcludeUnit(unit_id="RES-1")
     unrelated = PriorityBoost(incident_id="INC-1", factor=2)
@@ -136,7 +136,7 @@ def test_plans_respect_hard_constraints(seed: int) -> None:
 @pytest.mark.parametrize("seed", range(30))
 def test_solver_is_never_worse_than_the_greedy_baseline(seed: int) -> None:
     scenario = generate_scenario(seed=seed)
-    matrix = EuclideanProvider().matrix(scenario)
+    matrix = StraightLineProvider().matrix(scenario)
     greedy = RuleBasedDecisionEngine().recommend(scenario, matrix)
 
     optimum = solve(scenario, matrix)
@@ -160,7 +160,7 @@ def test_solve_is_deterministic_for_replay() -> None:
 
 def test_solver_engine_blocks_with_explanation_when_infeasible() -> None:
     scenario = _two_incidents_one_ambulance()
-    everywhere = Zone(id="all", min_x=0, min_y=0, max_x=100, max_y=100)
+    everywhere = Zone(id="all", min_lat=26.8, min_lon=80.9, max_lat=26.9, max_lon=81.0)
 
     result = SolverDecisionEngine().recommend(
         scenario,

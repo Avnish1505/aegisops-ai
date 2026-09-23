@@ -119,10 +119,10 @@ def test_conflicting_constraints_block_with_an_explanation() -> None:
             "count": 1,
             "zone": {
                 "id": "pin",
-                "min_x": unit["location"][0],
-                "min_y": unit["location"][1],
-                "max_x": unit["location"][0],
-                "max_y": unit["location"][1],
+                "min_lat": unit["location"]["lat"],
+                "min_lon": unit["location"]["lon"],
+                "max_lat": unit["location"]["lat"],
+                "max_lon": unit["location"]["lon"],
             },
         },
     ]

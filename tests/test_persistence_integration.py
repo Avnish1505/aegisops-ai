@@ -48,7 +48,7 @@ def _approved_scenario() -> dict[str, object]:
                 "id": "INC-1",
                 "type": "medical",
                 "severity": "low",
-                "location": [0, 0],
+                "location": {"lat": 26.8, "lon": 80.9},
                 "people_affected": 1,
                 "reported_at_min": 0,
                 "resources_needed": {"ambulance": 1},
@@ -58,7 +58,7 @@ def _approved_scenario() -> dict[str, object]:
             {
                 "id": "RES-1",
                 "type": "ambulance",
-                "location": [0, 0],
+                "location": {"lat": 26.8, "lon": 80.9},
                 "available": True,
             }
         ],
@@ -73,7 +73,7 @@ def _blocked_scenario() -> dict[str, object]:
                 "id": "INC-1",
                 "type": "medical",
                 "severity": "critical",
-                "location": [0, 0],
+                "location": {"lat": 26.8, "lon": 80.9},
                 "people_affected": 1,
                 "reported_at_min": 0,
                 "resources_needed": {"ambulance": 1},

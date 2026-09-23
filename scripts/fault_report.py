@@ -92,7 +92,8 @@ def build_report() -> str:
             "- Faults are injected one at a time by mutators written alongside the verifier. "
             "This shows each check does its job; it is not an adversarial evaluation of a live "
             "model.",
-            "- Scenarios use the synthetic 0–100 grid and Euclidean travel times.",
+            "- Scenarios are synthetic points in urban Lucknow with straight-line (great-circle x "
+            "1.4) travel times, not the OSRM road network.",
             "- SITREP numbers are checked against a fixed keyword grammar; a draft that phrases a "
             "number differently fails as unattributed rather than being understood.",
             "- Instruction detection is pattern-based and will miss paraphrased injections.",

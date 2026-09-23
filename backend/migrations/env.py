@@ -19,6 +19,11 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 target_metadata = Base.metadata
 
+
+def include_object(obj, name, type_, reflected, compare_to):  # type: ignore[no-untyped-def]
+    """Ignore tables we don't own (PostGIS's spatial_ref_sys, tiger/topology) in autogenerate."""
+    return not (type_ == "table" and reflected and compare_to is None)
+
 # The database URL comes from Settings (AEGISOPS_DATABASE_URL) so the app and its migrations
 # always target the same database. Callers such as tests may still set sqlalchemy.url
 # explicitly on the Alembic Config, which takes precedence.
@@ -67,7 +72,9 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
         )
 
         with context.begin_transaction():

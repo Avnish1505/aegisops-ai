@@ -13,7 +13,7 @@ from aegisops.domain.models import Scenario
 from aegisops.planning.constraints import ExcludeUnit
 from aegisops.planning.objective import plan_objective
 from aegisops.planning.solver import SolverDecisionEngine, solve
-from aegisops.planning.travel import EuclideanProvider
+from aegisops.planning.travel import StraightLineProvider
 from aegisops.verification.models import VerificationPolicy
 from aegisops.verification.verifier import verify
 
@@ -24,14 +24,14 @@ SETTINGS = settings(max_examples=60, deadline=None)
 @given(
     seed=st.integers(min_value=0, max_value=100_000),
     incidents=st.integers(min_value=1, max_value=10),
-    excluded=st.lists(st.integers(min_value=0, max_value=9), max_size=3, unique=True),
+    excluded=st.lists(st.integers(min_value=0, max_value=11), max_size=3, unique=True),
 )
 def test_solver_plans_never_fail_a_critical_check(
     seed: int, incidents: int, excluded: list[int]
 ) -> None:
     scenario = generate_scenario(seed=seed, num_incidents=incidents)
     constraints = [ExcludeUnit(unit_id=scenario.resources[index].id) for index in excluded]
-    matrix = EuclideanProvider().matrix(scenario)
+    matrix = StraightLineProvider().matrix(scenario)
     reference = solve(scenario, matrix, constraints)
     plan = SolverDecisionEngine().result_from_solve(scenario, reference)
 
@@ -52,7 +52,7 @@ def test_solver_plans_never_fail_a_critical_check(
 @given(seed=st.integers(min_value=0, max_value=100_000))
 def test_verify_is_a_pure_function(seed: int) -> None:
     scenario = generate_scenario(seed=seed)
-    matrix = EuclideanProvider().matrix(scenario)
+    matrix = StraightLineProvider().matrix(scenario)
     reference = solve(scenario, matrix)
     plan = SolverDecisionEngine().result_from_solve(scenario, reference)
     drafts = [render_sitrep(plan, scenario, matrix)]
@@ -76,7 +76,7 @@ def test_travel_time_claims_are_caught_exactly_beyond_tolerance(
     seed: int, pick: int, fraction: float, overstate: bool
 ) -> None:
     scenario = generate_scenario(seed=seed)
-    matrix = EuclideanProvider().matrix(scenario)
+    matrix = StraightLineProvider().matrix(scenario)
     reference = solve(scenario, matrix)
     plan = SolverDecisionEngine().result_from_solve(scenario, reference)
     assume(plan.assignments)
@@ -104,7 +104,8 @@ def test_travel_time_claims_are_caught_exactly_beyond_tolerance(
 @st.composite
 def tiny_scenarios(draw: st.DrawFn) -> Scenario:
     types = ["ambulance", "fire_unit"]
-    coordinate = st.integers(min_value=0, max_value=100)
+    latitude = st.floats(min_value=26.78, max_value=26.93)
+    longitude = st.floats(min_value=80.87, max_value=81.05)
     incident_count = draw(st.integers(min_value=1, max_value=3))
     resource_count = draw(st.integers(min_value=0, max_value=4))
     incidents = []
@@ -117,7 +118,7 @@ def tiny_scenarios(draw: st.DrawFn) -> Scenario:
                 "id": f"INC-{index}",
                 "type": "fire",
                 "severity": draw(st.sampled_from(["low", "medium", "high", "critical"])),
-                "location": [draw(coordinate), draw(coordinate)],
+                "location": {"lat": draw(latitude), "lon": draw(longitude)},
                 "people_affected": 1,
                 "reported_at_min": 0,
                 "resources_needed": needed,
@@ -127,7 +128,7 @@ def tiny_scenarios(draw: st.DrawFn) -> Scenario:
         {
             "id": f"RES-{index}",
             "type": draw(st.sampled_from(types)),
-            "location": [draw(coordinate), draw(coordinate)],
+            "location": {"lat": draw(latitude), "lon": draw(longitude)},
             "available": draw(st.booleans()),
         }
         for index in range(resource_count)
@@ -140,7 +141,7 @@ def tiny_scenarios(draw: st.DrawFn) -> Scenario:
 @SETTINGS
 @given(scenario=tiny_scenarios())
 def test_solver_matches_brute_force_optimum_on_tiny_instances(scenario: Scenario) -> None:
-    matrix = EuclideanProvider().matrix(scenario)
+    matrix = StraightLineProvider().matrix(scenario)
     result = solve(scenario, matrix)
 
     best = min(_brute_force_objectives(scenario, matrix))

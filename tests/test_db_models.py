@@ -95,8 +95,7 @@ def test_incident_model(db_session):
         id="inc1",
         type="medical",
         severity="medium",
-        location_x=10.0,
-        location_y=20.0,
+        location=(26.85, 80.95),
         people_affected=5,
         reported_at_min=0,
     )
@@ -107,8 +106,7 @@ def test_incident_model(db_session):
     assert incident.id == "inc1"
     assert incident.type == "medical"
     assert incident.severity == "medium"
-    assert incident.location_x == 10.0
-    assert incident.location_y == 20.0
+    assert incident.location == (26.85, 80.95)
     assert incident.people_affected == 5
     assert incident.reported_at_min == 0
     assert incident.created_at is not None
@@ -120,8 +118,7 @@ def test_evidence_model(db_session):
         id="inc1",
         type="medical",
         severity="medium",
-        location_x=10.0,
-        location_y=20.0,
+        location=(26.85, 80.95),
         people_affected=5,
         reported_at_min=0,
     )
@@ -170,8 +167,7 @@ def test_evidence_incident_foreign_key(db_session):
         id="inc1",
         type="medical",
         severity="medium",
-        location_x=10.0,
-        location_y=20.0,
+        location=(26.85, 80.95),
         people_affected=5,
         reported_at_min=0,
     )

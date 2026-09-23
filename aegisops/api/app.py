@@ -49,7 +49,7 @@ from aegisops.infrastructure.decision_store import record_decision, serialize_de
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 from aegisops.infrastructure.retrieval_engine import RetrievalEngine
 from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
-from aegisops.planning.travel import EuclideanProvider, TravelTimeProvider
+from aegisops.planning.travel import StraightLineProvider, TravelTimeProvider
 from backend.db.models import Approval, Base, Decision, User
 
 logger = logging.getLogger(__name__)
@@ -164,7 +164,7 @@ def create_app(
             "rule_based": RuleBasedDecisionEngine(),
             "llm_rag": LLMDecisionEngine(RetrievalEngine(active_settings.knowledge_base_path)),
         },
-        travel_provider or EuclideanProvider(),
+        travel_provider or StraightLineProvider(),
     )
 
     @app.get("/health/live", tags=["health"])

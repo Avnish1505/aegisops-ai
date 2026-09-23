@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from aegisops.domain.models import Resource, ResourceType
+from aegisops.domain.models import Location, Resource, ResourceType
 
 Identifier = Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")]
 
@@ -17,22 +17,25 @@ class ConstraintModel(BaseModel):
 
 
 class Zone(ConstraintModel):
-    """An axis-aligned rectangle in scenario coordinates; bounds are inclusive."""
+    """A WGS84 latitude/longitude box; bounds are inclusive. Does not cross the antimeridian."""
 
     id: Identifier
-    min_x: float
-    min_y: float
-    max_x: float
-    max_y: float
+    min_lat: Annotated[float, Field(ge=-90, le=90)]
+    min_lon: Annotated[float, Field(ge=-180, le=180)]
+    max_lat: Annotated[float, Field(ge=-90, le=90)]
+    max_lon: Annotated[float, Field(ge=-180, le=180)]
 
     @model_validator(mode="after")
     def _bounds_are_ordered(self) -> Zone:
-        if self.min_x > self.max_x or self.min_y > self.max_y:
+        if self.min_lat > self.max_lat or self.min_lon > self.max_lon:
             raise ValueError("zone minimum bounds must not exceed maximum bounds")
         return self
 
-    def contains(self, location: tuple[float, float]) -> bool:
-        return self.min_x <= location[0] <= self.max_x and self.min_y <= location[1] <= self.max_y
+    def contains(self, location: Location) -> bool:
+        return (
+            self.min_lat <= location.lat <= self.max_lat
+            and self.min_lon <= location.lon <= self.max_lon
+        )
 
 
 class ReserveConstraint(ConstraintModel):

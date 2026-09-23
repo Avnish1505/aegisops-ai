@@ -23,7 +23,7 @@ from aegisops.infrastructure.prompt_templates import (
     get_prompt_template,
 )
 from aegisops.planning.constraints import PlanningConstraint
-from aegisops.planning.travel import EuclideanProvider, TravelTimeMatrix
+from aegisops.planning.travel import StraightLineProvider, TravelTimeMatrix
 
 NIM_CHAT_COMPLETIONS_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 DEFAULT_NIM_MODEL = "meta/llama-3.1-8b-instruct"
@@ -65,7 +65,7 @@ class LLMDecisionEngine:
             return self._blocked_result(
                 scenario, evidence, "NVIDIA API credentials are unavailable."
             )
-        matrix = travel_times or EuclideanProvider().matrix(scenario)
+        matrix = travel_times or StraightLineProvider().matrix(scenario)
         for _ in range(2):
             try:
                 return self._request_decision(scenario, snippets, evidence, matrix, constraints)

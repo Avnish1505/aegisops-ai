@@ -158,3 +158,5 @@ def downgrade() -> None:
     op.drop_index('idx_decision_scenario_id', table_name='decisions')
     op.drop_table('decisions')
     # ### end Alembic commands ###
+    # PostgreSQL keeps enum types after their table is dropped; remove it so upgrade can rerun.
+    sa.Enum(name='userrole').drop(op.get_bind(), checkfirst=True)

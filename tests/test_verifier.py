@@ -10,7 +10,7 @@ from aegisops.domain.models import (
 )
 from aegisops.planning.constraints import ExcludeUnit, ReserveConstraint, Zone
 from aegisops.planning.solver import SolverDecisionEngine, SolveResult, solve
-from aegisops.planning.travel import EuclideanProvider, TravelTimeMatrix
+from aegisops.planning.travel import StraightLineProvider, TravelTimeMatrix
 from aegisops.verification.injection import looks_like_instruction
 from aegisops.verification.models import Verdict, VerificationPolicy, VerificationReport
 from aegisops.verification.numbers import number_mismatches
@@ -28,7 +28,7 @@ EVIDENCE = [
 
 def _setup(seed: int = 42) -> tuple[Scenario, TravelTimeMatrix, SolveResult, DecisionResult]:
     scenario = generate_scenario(seed=seed)
-    matrix = EuclideanProvider().matrix(scenario)
+    matrix = StraightLineProvider().matrix(scenario)
     reference = solve(scenario, matrix)
     plan = SolverDecisionEngine().result_from_solve(scenario, reference)
     return scenario, matrix, reference, plan
@@ -143,13 +143,14 @@ def test_safety_gate_blocks_honest_plan_with_critical_shortage() -> None:
         {
             "scenario_id": "SCEN-short",
             "incidents": [
-                {"id": "INC-1", "type": "medical", "severity": "critical", "location": [0, 0],
-                 "people_affected": 3, "reported_at_min": 0, "resources_needed": {"ambulance": 1}}
+                {"id": "INC-1", "type": "medical", "severity": "critical",
+                 "location": {"lat": 26.8, "lon": 80.9}, "people_affected": 3,
+                 "reported_at_min": 0, "resources_needed": {"ambulance": 1}}
             ],
             "resources": [],
         }
     )
-    matrix = EuclideanProvider().matrix(scenario)
+    matrix = StraightLineProvider().matrix(scenario)
     reference = solve(scenario, matrix)
     plan = SolverDecisionEngine().result_from_solve(scenario, reference)
 
@@ -164,7 +165,7 @@ def test_constraint_violations_are_detected() -> None:
     scenario, matrix, reference, plan = _setup()
     used = plan.assignments[0]
     unit = next(r for r in scenario.resources if r.id == used.resource_id)
-    everywhere = Zone(id="all", min_x=0, min_y=0, max_x=100, max_y=100)
+    everywhere = Zone(id="all", min_lat=26.8, min_lon=80.9, max_lat=26.9, max_lon=81.0)
     total_of_type = sum(r.type == unit.type and r.available for r in scenario.resources)
     constraints = [
         ExcludeUnit(unit_id=used.resource_id),

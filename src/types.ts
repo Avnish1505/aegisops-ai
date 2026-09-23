@@ -1,23 +1,30 @@
 export type Severity = 'low' | 'medium' | 'high' | 'critical'
 export type IncidentType = 'medical' | 'fire' | 'structural_collapse' | 'flood' | 'hazmat'
-export type ResourceType = 'ambulance' | 'fire_unit' | 'rescue_team' | 'hazmat_unit'
+export type ResourceType = 'ambulance' | 'fire_unit' | 'rescue_team' | 'hazmat_unit' | 'boat'
+
+/** WGS84 decimal degrees. */
+export interface Location {
+  lat: number
+  lon: number
+}
 
 export interface Incident {
   id: string
   type: IncidentType
   severity: Severity
-  location: [number, number]
+  location: Location
   people_affected: number
   reported_at_min: number
   resources_needed: Partial<Record<ResourceType, number>>
+  report?: string | null
 }
 
 export interface Resource {
   id: string
   type: ResourceType
-  location: [number, number]
+  location: Location
   available: boolean
-  eta_speed: number
+  speed_kmh: number
 }
 
 export interface Scenario {
