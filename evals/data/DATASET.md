@@ -14,18 +14,21 @@ the SHA-256 of the assembled file.
 
 ## Synthetic Lucknow reports (200)
 
-- **How they were made.** Rendered from 40 templates written for this project by an AI assistant
-  (Claude), in English (72), Hinglish, i.e. Hindi in Latin script (77), and Hindi in Devanagari
-  (51). Types: flood 83, medical 59, structural collapse 29, fire 24, non-incident 5. Slots are filled with real Lucknow places and landmarks from the OSM gazetteer
+- **How they were made.** Rendered from 47 templates written for this project by an AI assistant
+  (Claude), in English (75), Hinglish, i.e. Hindi in Latin script (78), and Hindi in Devanagari
+  (47). Types: flood 78, medical 54, structural collapse 34, fire 29, non-incident 5. Slots are
+  filled with real Lucknow places and landmarks from the OSM gazetteer
   (`aegisops/intake/lucknow_gazetteer.json`), people counts written as digits, number words,
   Devanagari digits or approximations ("lagbhag 25", "करीब ४०"), and requested unit quantities.
+  All 200 texts are distinct: the generator redraws any duplicate, because repeated items would
+  make the bootstrap intervals narrower than the data supports.
 - **Where the labels come from.** Every gold label is the slot value the template was filled
   with, so labels are correct by construction; nobody annotated the text after the fact. Gold
   severity is the deterministic rule set (`aegisops/intake/severity.py`) applied to the gold
   fields, so severity accuracy measures how extraction errors propagate, not whether the rules
   are right.
 - **Slices.** `en`, `hi`, `hinglish`; `no_location` (15 reports with no place); `injection`
-  (11 reports containing an instruction aimed at the model); 5 non-incident messages.
+  (6 reports containing an instruction aimed at the model); 5 non-incident messages.
 - **Limits.** Templated text is far less varied than real reports: the same phrasing recurs,
   spelling is clean, and there is one incident per report. Scores on this set are an upper bound
   on real-world performance.

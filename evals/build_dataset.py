@@ -219,6 +219,18 @@ NO_LOCATION: tuple[T, ...] = (
     ("noloc-en", "medical", "en",
      "Someone collapsed in the flood water and is not responding, please hurry",
      ("unconscious",), (), False),
+    ("noloc-hl-2", "flood", "hinglish",
+     "Hamari gali mein pani tezi se badh raha hai, {n} log chhat par fanse hain",
+     ("trapped", "water_rising"), (), True),
+    ("noloc-en-2", "flood", "en",
+     "Water is rising fast in our street and {n} people are stuck on a rooftop",
+     ("trapped", "water_rising"), (), True),
+    ("noloc-hi", "flood", "hi",
+     "हमारे मोहल्ले में पानी भर गया है, {n} लोग छत पर फंसे हैं, {q} नाव भेजिए।",
+     ("trapped",), (("boat", "q"),), True),
+    ("noloc-hl-3", "medical", "hinglish",
+     "Ek aadmi pani mein gir ke behosh ho gaya, {q} ambulance bhejo jaldi",
+     ("unconscious",), (("ambulance", "q"),), False),
 )
 NOT_INCIDENTS = (
     ("info-hl", "hinglish",
@@ -226,7 +238,13 @@ NOT_INCIDENTS = (
     ("info-en", "en",
      "Thank you to all the volunteers distributing food packets in the city today"),
     ("info-hi", "hi", "नगर निगम की टीमें नालों की सफाई कर रही हैं।"),
+    ("info-hl-2", "hinglish", "Sabhi log apne phone charge rakhein aur afwaahon par dhyan na dein"),
+    ("info-hi-2", "hi", "कृपया बिजली के खंभों से दूर रहें और उबला हुआ पानी पिएं।"),
+    ("info-en-2", "en", "Reminder: keep emergency numbers saved and your phone charged tonight"),
 )
+# Redraws allowed per row to find a text not already in the dataset (duplicates would make
+# bootstrap intervals look tighter than they are).
+MAX_REDRAWS = 500
 TYPE_WEIGHTS = {"flood": 0.45, "medical": 0.25, "structural_collapse": 0.15, "fire": 0.15}
 
 
@@ -259,46 +277,58 @@ def synthetic_reports(gazetteer: Gazetteer, count: int = 200) -> list[dict[str, 
     reports: list[dict[str, object]] = []
     plan = (["incident"] * (count - 15)) + (["no_location"] * 10) + (["not_incident"] * 5)
     rng.shuffle(plan)
+    seen: set[str] = set()
     for number, kind_of_row in enumerate(plan, start=1):
-        if kind_of_row == "not_incident":
-            template_id, language, text = rng.choice(NOT_INCIDENTS)
-            gold = _gold(None, None, None, None, [], ())
-            gold["severity"], gold["severity_rule"] = None, None
-            reports.append(_row(number, language, text, template_id, gold))
-            continue
-        if kind_of_row == "no_location":
-            templates = NO_LOCATION
+        for _ in range(MAX_REDRAWS):
+            row = _draw(number, kind_of_row, rng, pool, hindi_pool)
+            if row["text"] not in seen:
+                break
         else:
-            # Pick the incident type by target share first, then a template of that type.
-            chosen_type = rng.choices(list(TYPE_WEIGHTS), weights=list(TYPE_WEIGHTS.values()))[0]
-            templates = tuple(t for t in TEMPLATES if t[1] == chosen_type)
-        template_id, kind, language, text, signals, need_spec, uses_people = rng.choice(
-            templates
-        )
-        spot = None
-        surface = None
-        if "{loc}" in text:
-            candidates = hindi_pool if language == "hi" else pool
-            spot = rng.choice(candidates)
-            surface = spot.hi if language == "hi" else spot.en
-        people = rng.choice([2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 35, 40, 50, 60, 80])
-        people_text = render_number(people, language, rng)
-        quantity = rng.choice([1, 2, 2, 3])
-        quantity_text = render_exact(quantity, language, rng) if quantity > 1 else (
-            {"en": "a", "hinglish": "ek", "hi": "एक"}[language]
-        )
-        rendered = text.format(loc=surface, n=people_text, q=quantity_text)
-        if language == "en" and quantity == 1:
-            rendered = rendered.replace("a boats", "a boat").replace("a ambulances", "an ambulance")
-        needs = [
-            {"resource_type": rtype, "quantity": quantity if spec == "q" else spec}
-            for rtype, spec in need_spec
-        ]
-        gold = _gold(kind, spot, surface, people if uses_people else None, needs, signals)
-        gold["people_text"] = people_text if uses_people else None
-        gold["quantity_text"] = quantity_text if any(s == "q" for _, s in need_spec) else None
-        reports.append(_row(number, language, rendered, template_id, gold))
+            raise RuntimeError(f"no unique text for row {number} ({kind_of_row})")
+        seen.add(str(row["text"]))
+        reports.append(row)
     return reports
+
+
+def _draw(number: int, kind_of_row: str, rng: random.Random, pool: list[Spot],
+          hindi_pool: list[Spot]) -> dict[str, object]:
+    if kind_of_row == "not_incident":
+        template_id, language, text = rng.choice(NOT_INCIDENTS)
+        gold = _gold(None, None, None, None, [], ())
+        gold["severity"], gold["severity_rule"] = None, None
+        return _row(number, language, text, template_id, gold)
+    if kind_of_row == "no_location":
+        templates = NO_LOCATION
+    else:
+        # Pick the incident type by target share first, then a template of that type.
+        chosen_type = rng.choices(list(TYPE_WEIGHTS), weights=list(TYPE_WEIGHTS.values()))[0]
+        templates = tuple(t for t in TEMPLATES if t[1] == chosen_type)
+    template_id, kind, language, text, signals, need_spec, uses_people = rng.choice(
+        templates
+    )
+    spot = None
+    surface = None
+    if "{loc}" in text:
+        candidates = hindi_pool if language == "hi" else pool
+        spot = rng.choice(candidates)
+        surface = spot.hi if language == "hi" else spot.en
+    people = rng.choice([2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 35, 40, 50, 60, 80])
+    people_text = render_number(people, language, rng)
+    quantity = rng.choice([1, 2, 2, 3])
+    quantity_text = render_exact(quantity, language, rng) if quantity > 1 else (
+        {"en": "a", "hinglish": "ek", "hi": "एक"}[language]
+    )
+    rendered = text.format(loc=surface, n=people_text, q=quantity_text)
+    if language == "en" and quantity == 1:
+        rendered = rendered.replace("a boats", "a boat").replace("a ambulances", "an ambulance")
+    needs = [
+        {"resource_type": rtype, "quantity": quantity if spec == "q" else spec}
+        for rtype, spec in need_spec
+    ]
+    gold = _gold(kind, spot, surface, people if uses_people else None, needs, signals)
+    gold["people_text"] = people_text if uses_people else None
+    gold["quantity_text"] = quantity_text if any(s == "q" for _, s in need_spec) else None
+    return _row(number, language, rendered, template_id, gold)
 
 
 def _row(number: int, language: str, text: str, template: str,
@@ -445,6 +475,33 @@ def e2e(reports: list[dict[str, object]]) -> list[dict[str, object]]:
             for number in range(1, 51)]
 
 
+def spotcheck(reports: list[dict[str, Any]], size: int = 30) -> str:
+    """A seeded sample of synthetic rows for a human to check the gold labels against the text."""
+    synthetic = [r for r in reports if r["source"] == "synthetic_lucknow"]
+    sample = sorted(random.Random(SEED + 1).sample(synthetic, size), key=lambda r: r["id"])
+    lines = [
+        f"# Spot-check sample ({size} of {len(synthetic)} synthetic reports)",
+        "",
+        f"Randomly drawn (seed {SEED + 1}; `python -m evals.build_dataset`).",
+        "For each row, check that the gold labels match what the text says. Mark disagreements in",
+        "the last column; any disagreement means a template or label bug.",
+        "",
+        "| id | text | type | location (OSM) | people | needs | signals | severity | OK? |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for row in sample:
+        gold = row["gold"]
+        location = gold["location"]["name"] if gold["location"] else "-"
+        needs = ", ".join(f"{n['quantity']} {n['resource_type']}" for n in gold["needs"]) or "-"
+        people = gold["people_count"] if gold["people_count"] is not None else "-"
+        text = str(row["text"]).replace("|", "\\|")
+        lines.append(
+            f"| {row['id']} | {text} | {gold['incident_type'] or '-'} | {location} | {people} "
+            f"| {needs} | {', '.join(gold['signals']) or '-'} | {gold['severity'] or '-'} | |"
+        )
+    return "\n".join(lines) + "\n"
+
+
 def write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
     path.write_text("".join(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n"
                             for row in rows), encoding="utf-8")
@@ -460,6 +517,8 @@ def main() -> None:
     write_jsonl(DATA / "reports_v1.jsonl", reports)
     write_jsonl(DATA / "notes_v1.jsonl", notes(gazetteer, exercise))
     write_jsonl(DATA / "e2e_v1.jsonl", e2e(reports))
+    (DATA / "spotcheck_v1.md").write_text(
+        spotcheck([json.loads(json.dumps(r)) for r in reports]), encoding="utf-8")
     print(f"reports {len(reports)}, notes 50, e2e 50")
 
 
