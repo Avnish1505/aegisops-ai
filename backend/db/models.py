@@ -6,6 +6,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     Column,
     DateTime,
@@ -16,6 +17,7 @@ from sqlalchemy import (
     String,
     Table,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -208,3 +210,38 @@ class Event(Base):
     hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
 
     __table_args__ = (Index("idx_event_type", "type"),)
+
+
+class Facility(Base):
+    """An emergency facility imported from OpenStreetMap (ODbL)."""
+
+    __tablename__ = "facilities"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    osm_type: Mapped[str] = mapped_column(String(8), nullable=False)
+    osm_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(255))
+    location: Mapped[tuple[float, float]] = mapped_column(GeoPoint(), nullable=False)
+    tags: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("osm_type", "osm_id", name="uq_facility_osm"),
+        Index("idx_facility_kind", "kind"),
+        Index("idx_facility_location", "location", postgresql_using="gist"),
+    )
+
+
+class Unit(Base):
+    """A response unit stationed at a facility (placement is an exercise assumption)."""
+
+    __tablename__ = "units"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    type: Mapped[str] = mapped_column(String(32), nullable=False)
+    facility_id: Mapped[int] = mapped_column(ForeignKey("facilities.id"), nullable=False)
+    location: Mapped[tuple[float, float]] = mapped_column(GeoPoint(), nullable=False)
+    available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    speed_kmh: Mapped[float] = mapped_column(nullable=False)
+
+    facility: Mapped[Facility] = relationship()
