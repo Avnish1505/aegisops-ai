@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./aegisops.db"
     knowledge_base_path: Path = REPOSITORY_ROOT / "knowledge"
     rate_limit: str = "100/minute"
+    # OSRM base URL (e.g. http://osrm:5000). Unset: straight-line travel times.
+    osrm_url: str | None = None
+    osrm_profile: str = "driving"
 
     model_config = SettingsConfigDict(
         env_prefix="AEGISOPS_",

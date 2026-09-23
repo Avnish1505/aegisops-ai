@@ -80,6 +80,7 @@ export interface Decision {
   solve_status: string | null
   travel_provider: string | null
   travel_degraded: boolean | null
+  travel_degraded_reason: string | null
 }
 
 export type CheckSeverity = 'critical' | 'high' | 'warning'

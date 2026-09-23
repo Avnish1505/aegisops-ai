@@ -192,6 +192,13 @@ export function ResultsPanel({ decision, onActiveAssignment }: ResultsPanelProps
         </Panel>
       </div>
 
+      {decision.travel_degraded && (
+        <div role="alert" className="border border-status-blocked/40 bg-status-blocked/10 px-4 py-3 text-sm text-status-blocked">
+          <p className="font-semibold">Travel times are degraded estimates, not road routing.</p>
+          <p className="mt-0.5 text-xs">{decision.travel_degraded_reason ?? 'The road-network service was unavailable.'}</p>
+        </div>
+      )}
+
       <VerificationPanel decision={decision} />
 
       <Panel>

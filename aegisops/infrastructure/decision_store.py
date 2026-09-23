@@ -113,6 +113,7 @@ def serialize_decision(decision: Decision) -> dict[str, object]:
         "travel_times": decision.travel_times,
         "travel_provider": travel.get("provider"),
         "travel_degraded": travel.get("degraded"),
+        "travel_degraded_reason": travel.get("degraded_reason"),
         "created_at": decision.created_at.isoformat(),
         "approvals": [
             {

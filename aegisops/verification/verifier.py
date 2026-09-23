@@ -368,6 +368,21 @@ def _human_approval_required(ctx: _Context) -> CheckResult:
     )
 
 
+def _travel_times_not_degraded(ctx: _Context) -> CheckResult:
+    matrix = ctx.travel_times
+    return CheckResult(
+        id="travel_times_not_degraded",
+        passed=not matrix.degraded,
+        severity=HIGH,
+        message=(
+            f"Travel times came from {matrix.provider} as configured."
+            if not matrix.degraded
+            else f"Degraded travel times: {matrix.degraded_reason or 'fallback estimates used'}."
+        ),
+        offending_ids=[matrix.provider] if matrix.degraded else [],
+    )
+
+
 def _no_instruction_injection(ctx: _Context) -> CheckResult:
     bad = [
         incident.id
@@ -394,6 +409,7 @@ CHECKS: tuple[Callable[[_Context], CheckResult], ...] = (
     _capability_match,
     _quantity_within_requirement,
     _travel_time_matches,
+    _travel_times_not_degraded,
     _critical_incidents_accounted,
     _unmet_declared_accurately,
     _objective_within_tolerance,

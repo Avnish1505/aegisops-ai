@@ -49,6 +49,7 @@ from aegisops.infrastructure.decision_store import record_decision, serialize_de
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 from aegisops.infrastructure.retrieval_engine import RetrievalEngine
 from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
+from aegisops.planning.osrm import OSRMProvider
 from aegisops.planning.travel import StraightLineProvider, TravelTimeProvider
 from backend.db.models import Approval, Base, Decision, User
 
@@ -164,7 +165,7 @@ def create_app(
             "rule_based": RuleBasedDecisionEngine(),
             "llm_rag": LLMDecisionEngine(RetrievalEngine(active_settings.knowledge_base_path)),
         },
-        travel_provider or StraightLineProvider(),
+        travel_provider or _default_travel_provider(active_settings),
     )
 
     @app.get("/health/live", tags=["health"])
@@ -311,3 +312,9 @@ def create_app(
             return verify_chain(session).as_dict()
 
     return app
+
+
+def _default_travel_provider(settings: Settings) -> TravelTimeProvider:
+    if settings.osrm_url:
+        return OSRMProvider(settings.osrm_url, profile=settings.osrm_profile)
+    return StraightLineProvider()

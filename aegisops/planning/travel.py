@@ -17,7 +17,9 @@ class TravelTimeMatrix(BaseModel):
 
     provider: str
     minutes: dict[str, dict[str, float]]
+    # True when the configured provider failed and estimates were substituted.
     degraded: bool = False
+    degraded_reason: str | None = None
 
     def get(self, resource_id: str, incident_id: str) -> float | None:
         return self.minutes.get(resource_id, {}).get(incident_id)
