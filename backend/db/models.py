@@ -189,3 +189,19 @@ class AuditLog(Base):
         Index("idx_audit_timestamp", "timestamp"),
         Index("idx_audit_table_record", "table_name", "record_id"),
     )
+
+
+class Event(Base):
+    """Append-only, hash-chained audit event (see aegisops/audit/event_log.py)."""
+
+    __tablename__ = "events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    ts: Mapped[str] = mapped_column(String(40), nullable=False)
+    actor: Mapped[str] = mapped_column(String(255), nullable=False)
+    type: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    prev_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+
+    __table_args__ = (Index("idx_event_type", "type"),)

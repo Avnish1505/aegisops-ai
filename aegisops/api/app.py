@@ -27,6 +27,12 @@ from aegisops.api.security import require_operator, require_viewer
 from aegisops.application.decision_service import DecisionService
 from aegisops.application.roles import UserRole
 from aegisops.application.scenario_service import generate_scenario
+from aegisops.audit.event_log import (
+    append_event,
+    approval_record_sha256,
+    record_ref,
+    verify_chain,
+)
 from aegisops.core.config import Settings
 from aegisops.core.logging import configure_logging, request_id_var
 from aegisops.domain.models import Scenario
@@ -35,7 +41,7 @@ from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 from aegisops.infrastructure.retrieval_engine import RetrievalEngine
 from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
 from aegisops.planning.travel import EuclideanProvider, TravelTimeProvider
-from backend.db.models import Approval, AuditLog, Base, Decision, User
+from backend.db.models import Approval, Base, Decision, User
 
 logger = logging.getLogger(__name__)
 
@@ -235,27 +241,35 @@ def create_app(
             )
             session.add(approval)
             session.flush()
-            audit = AuditLog(
-                user_id=actor.id,
-                action=(
-                    "decision_approved" if request_body.action == "approve" else "decision_rejected"
-                ),
-                table_name="decisions",
-                record_id=str(decision.id),
-                change_data={
-                    "actor": role.value,
+            event = append_event(
+                session,
+                actor=actor_name,
+                type="disposition_recorded",
+                payload={
+                    "decision_id": decision.id,
+                    "approval_id": approval.id,
                     "action": request_body.action,
                     "reason": request_body.reason,
+                    "record": record_ref(
+                        "approvals", approval.id, approval_record_sha256(approval)
+                    ),
                 },
             )
-            session.add(audit)
-            session.flush()
             return {
                 "decision_id": decision.id,
                 "disposition_id": approval.id,
                 "action": request_body.action,
-                "timestamp": audit.timestamp.isoformat(),
+                "timestamp": event.ts,
             }
+
+    @app.get("/api/v1/audit/verify", tags=["audit"])
+    async def verify_audit_chain(
+        request: Request,
+        role: Annotated[UserRole, Depends(require_viewer)],
+    ) -> dict[str, object]:
+        del role
+        with session_factory() as session:
+            return verify_chain(session).as_dict()
 
     return app
 

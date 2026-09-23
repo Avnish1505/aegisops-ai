@@ -5,15 +5,17 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from aegisops.application.decision_service import DecisionOutcome
+from aegisops.audit.event_log import append_event, decision_record_sha256, record_ref
+from aegisops.domain.canonical import canonical_json, sha256_hex
 from aegisops.domain.models import Scenario
 from aegisops.planning.objective import plan_objective
-from backend.db.models import AuditLog, Decision
+from backend.db.models import Decision
 
 
 def record_decision(
     session: Session, scenario: Scenario, outcome: DecisionOutcome, actor: str
 ) -> Decision:
-    """Store the full decision record and its creation audit entry; returns the flushed row."""
+    """Store the full decision record and append its creation and verification events."""
     result = outcome.result
     decision = Decision(
         scenario_id=result.scenario_id,
@@ -51,14 +53,31 @@ def record_decision(
     )
     session.add(decision)
     session.flush()
-    session.add(
-        AuditLog(
-            user_id=None,
-            action="decision_created",
-            table_name="decisions",
-            record_id=str(decision.id),
-            change_data={"actor": actor, "scenario_id": result.scenario_id},
-        )
+    append_event(
+        session,
+        actor=actor,
+        type="decision_created",
+        payload={
+            "decision_id": decision.id,
+            "scenario_sha256": decision.scenario_sha256,
+            "engine": decision.engine,
+            "status": decision.status,
+            "record": record_ref("decisions", decision.id, decision_record_sha256(decision)),
+        },
+    )
+    report = outcome.verification
+    append_event(
+        session,
+        actor="verifier",
+        type="verification_completed",
+        payload={
+            "decision_id": decision.id,
+            "verdict": report.verdict.value,
+            "blocking_check_ids": report.blocking_check_ids,
+            "failed_check_ids": [check.id for check in report.failed()],
+            "safety_gate_blocked": report.safety_gate_blocked,
+            "report_sha256": sha256_hex(canonical_json(report.model_dump(mode="json"))),
+        },
     )
     return decision
 

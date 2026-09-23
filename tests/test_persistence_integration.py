@@ -15,7 +15,7 @@ from aegisops.planning.solver import SolverDecisionEngine, solve
 from aegisops.planning.travel import TravelTimeMatrix
 from aegisops.verification.models import TextDraft
 from aegisops.verification.verifier import verify
-from backend.db.models import Approval, AuditLog, Decision
+from backend.db.models import Approval, Decision, Event
 from backend.seed import DEMO_SEED, seed
 
 
@@ -96,21 +96,18 @@ def test_persists_decision_approval_and_audit(tmp_path: Path) -> None:
     with Session(create_engine(database_url)) as session:
         decision = session.get(Decision, decision_id)
         approval = session.scalar(select(Approval).where(Approval.decision_id == decision_id))
-        audit = session.scalar(
-            select(AuditLog).where(
-                AuditLog.record_id == str(decision_id), AuditLog.action == "decision_approved"
-            )
-        )
+        events = session.scalars(select(Event).order_by(Event.id)).all()
 
     assert decision is not None
     assert approval is not None and approval.approved is True
-    assert audit is not None
-    assert audit.change_data == {
-        "actor": "operator",
-        "action": "approve",
-        "reason": "Synthetic scenario reviewed.",
-    }
-    assert audit.timestamp is not None
+    assert [event.type for event in events] == [
+        "decision_created",
+        "verification_completed",
+        "disposition_recorded",
+    ]
+    assert events[2].payload["action"] == "approve"
+    assert events[2].payload["reason"] == "Synthetic scenario reviewed."
+    assert events[2].payload["decision_id"] == decision_id
 
 
 def test_blocked_decision_cannot_be_approved_or_create_disposition(tmp_path: Path) -> None:
@@ -128,14 +125,12 @@ def test_blocked_decision_cannot_be_approved_or_create_disposition(tmp_path: Pat
     assert disposition_response.status_code == 409
     with Session(create_engine(database_url)) as session:
         approval = session.scalar(select(Approval).where(Approval.decision_id == decision_id))
-        disposition_audit = session.scalar(
-            select(AuditLog).where(
-                AuditLog.record_id == str(decision_id), AuditLog.action == "decision_approved"
-            )
-        )
+        dispositions = session.scalars(
+            select(Event).where(Event.type == "disposition_recorded")
+        ).all()
 
     assert approval is None
-    assert disposition_audit is None
+    assert dispositions == []
 
 
 def test_migrations_target_database_from_settings(
