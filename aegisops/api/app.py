@@ -32,6 +32,7 @@ from aegisops.api.schemas import (
     ErrorResponse,
     ReadReportRequest,
     ScenarioDecisionRequest,
+    TranslateNoteRequest,
 )
 from aegisops.application.decision_service import DecisionService
 from aegisops.application.roles import UserRole
@@ -50,6 +51,7 @@ from aegisops.infrastructure.decision_store import record_decision, serialize_de
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 from aegisops.infrastructure.retrieval_engine import RetrievalEngine
 from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
+from aegisops.intake.constraints import ConstraintTranslator
 from aegisops.intake.gazetteer import DEFAULT_GAZETTEER, Gazetteer
 from aegisops.intake.reader import Reader, to_incident
 from aegisops.llm.client import LLMClient, LLMError, LLMOutputError
@@ -174,7 +176,9 @@ def create_app(
     )
 
     llm = llm_client or LLMClient(active_settings)
-    reader = Reader(llm, Gazetteer.load(DEFAULT_GAZETTEER))
+    gazetteer = Gazetteer.load(DEFAULT_GAZETTEER)
+    reader = Reader(llm, gazetteer)
+    translator = ConstraintTranslator(llm, gazetteer)
 
     def require_llm() -> None:
         if not llm.available:
@@ -211,6 +215,24 @@ def create_app(
                 "cost_usd": result.record.cost_usd,
             },
         }
+
+    @app.post("/api/v1/constraints/translate", tags=["intake"])
+    async def translate_constraint(
+        request: Request,
+        request_body: TranslateNoteRequest,
+        principal: Annotated[Principal, Depends(require_operator)],
+    ) -> dict[str, object]:
+        """Operator note -> one proposed constraint. The solver only uses it once the operator
+        confirms it by sending it back in a decision request's ``constraints``."""
+        del principal
+        require_llm()
+        try:
+            result = translator.translate(request_body.note, request_body.scenario)
+        except (LLMError, LLMOutputError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Translator failed: {error}"
+            ) from error
+        return result.proposal.model_dump(mode="json")
 
     @app.get("/health/live", tags=["health"])
     @limiter.limit(active_settings.rate_limit)

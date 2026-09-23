@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchDecision, fetchExercise, fetchExercises, fetchScenario } from './api'
-import type { Assignment, Decision, ExerciseSummary, Scenario, SelectedEntity } from './types'
+import type { Assignment, Decision, ExerciseSummary, PlanningConstraint, Scenario, SelectedEntity } from './types'
 import { AppShell } from './components/AppShell'
 import { ScenarioControl } from './components/ScenarioControl'
 import { ErrorBanner } from './components/ErrorBanner'
@@ -13,6 +13,7 @@ import { StatusIndicator } from './components/StatusIndicator'
 import { IdentitySwitcher } from './components/IdentitySwitcher'
 import { Panel } from './components/Panel'
 import { ActionButton } from './components/buttons'
+import { ConstraintPanel } from './components/ConstraintPanel'
 
 function App() {
   const [seedText, setSeedText] = useState('42')
@@ -24,6 +25,8 @@ function App() {
   const [isRecommending, setIsRecommending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [exercises, setExercises] = useState<ExerciseSummary[]>([])
+  const [constraints, setConstraints] = useState<PlanningConstraint[]>([])
+  const [constraintNotes, setConstraintNotes] = useState<string[]>([])
 
   useEffect(() => {
     // Saved exercises are optional: a stack without them simply shows none.
@@ -32,6 +35,8 @@ function App() {
 
   const showScenario = (next: Scenario) => {
     setScenario(next)
+    setConstraints([])
+    setConstraintNotes([])
     setDecision(null)
     setSelected(null)
     setActiveAssignment(null)
@@ -74,7 +79,7 @@ function App() {
     setActiveAssignment(null)
     setDecision(null)
     try {
-      setDecision(await fetchDecision(scenario))
+      setDecision(await fetchDecision(scenario, constraints))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not retrieve a recommendation.')
     } finally {
@@ -123,6 +128,20 @@ function App() {
               {isRecommending ? 'Analyzing scenario…' : 'Get recommendation'}
             </ActionButton>
           </div>
+
+          <ConstraintPanel
+            scenario={scenario}
+            confirmed={constraints}
+            explanations={constraintNotes}
+            onConfirm={(constraint, explanation) => {
+              setConstraints((current) => [...current, constraint])
+              setConstraintNotes((current) => [...current, explanation])
+            }}
+            onRemove={(index) => {
+              setConstraints((current) => current.filter((_, position) => position !== index))
+              setConstraintNotes((current) => current.filter((_, position) => position !== index))
+            }}
+          />
 
           <SituationOverview scenario={scenario} decision={decision} />
 

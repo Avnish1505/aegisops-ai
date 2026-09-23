@@ -1,4 +1,12 @@
-import type { Decision, DispositionAction, DispositionResult, ExerciseSummary, Scenario } from './types'
+import type {
+  ConstraintProposal,
+  Decision,
+  DispositionAction,
+  DispositionResult,
+  ExerciseSummary,
+  PlanningConstraint,
+  Scenario,
+} from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
@@ -77,11 +85,21 @@ export function fetchExercise(exerciseId: string): Promise<Scenario> {
   return request<Scenario>(`/api/v1/exercises/${encodeURIComponent(exerciseId)}`)
 }
 
-export async function fetchDecision(scenario: Scenario): Promise<Decision> {
+export async function fetchDecision(scenario: Scenario, constraints: PlanningConstraint[] = []): Promise<Decision> {
   return request<Decision>('/api/v1/decisions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify({ scenario }),
+    body: JSON.stringify({ scenario, constraints }),
+  })
+}
+
+/** Ask the model to propose one constraint from an operator note. Proposals are never applied
+ * automatically; the caller must confirm and send them with fetchDecision. */
+export async function translateNote(note: string, scenario: Scenario): Promise<ConstraintProposal> {
+  return request<ConstraintProposal>('/api/v1/constraints/translate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({ note, scenario }),
   })
 }
 

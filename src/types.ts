@@ -34,6 +34,28 @@ export interface Scenario {
   sim_start_min: number
 }
 
+export interface Zone {
+  id: string
+  min_lat: number
+  min_lon: number
+  max_lat: number
+  max_lon: number
+}
+
+export type PlanningConstraint =
+  | { kind: 'reserve'; resource_type: ResourceType; count: number; zone: Zone }
+  | { kind: 'exclude_unit'; unit_id: string }
+  | { kind: 'priority_boost'; incident_id: string; factor: number }
+
+export interface ConstraintProposal {
+  note: string
+  status: 'needs_confirmation' | 'rejected'
+  constraint: PlanningConstraint | null
+  explanation: string
+  quote: string | null
+  reasons: string[]
+}
+
 /** A saved scenario from GET /api/v1/exercises. */
 export interface ExerciseSummary {
   id: string

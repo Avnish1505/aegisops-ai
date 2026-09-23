@@ -55,3 +55,12 @@ class ReadReportRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     report: Annotated[str, Field(min_length=3, max_length=4_000)]
+
+
+class TranslateNoteRequest(BaseModel):
+    """An operator's constraint note, with the scenario it refers to (for unit/incident ids)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    note: Annotated[str, Field(min_length=3, max_length=1_000)]
+    scenario: Scenario | None = None
