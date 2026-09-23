@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
+from aegisops.application.roles import UserRole
 from backend.db.models import (
     Approval,
     AuditLog,
@@ -14,7 +15,6 @@ from backend.db.models import (
     Incident,
     Role,
     User,
-    UserRole,
 )
 
 

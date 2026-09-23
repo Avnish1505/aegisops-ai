@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import enum
 from datetime import datetime
 
 from sqlalchemy import (
@@ -20,15 +19,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from aegisops.application.roles import UserRole
+
 
 class Base(DeclarativeBase):
     pass
-
-
-class UserRole(enum.StrEnum):
-    ADMIN = "admin"
-    OPERATOR = "operator"
-    VIEWER = "viewer"
 
 
 # Association table for user-role many-to-many

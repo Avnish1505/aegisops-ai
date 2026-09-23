@@ -36,8 +36,8 @@ def get_current_user_role(
             role_name = token.split(":", 1)[1].lower()
         else:
             role_name = token.lower()
-        return UserRole[role_name.upper()]
-    except KeyError as error:
+        return UserRole(role_name)
+    except ValueError as error:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token",
@@ -54,10 +54,12 @@ def require_role(minimum_role: UserRole) -> Callable[[UserRole], UserRole]:
     def role_checker(
         role: Annotated[UserRole, Depends(get_current_user_role)],
     ) -> UserRole:
-        if role < minimum_role:
+        if not role.at_least(minimum_role):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Insufficient permissions. Required: {minimum_role.name}, got: {role.name}",
+                detail=(
+                    f"Insufficient permissions. Required: {minimum_role.value}, got: {role.value}"
+                ),
             )
         return role
 
@@ -66,5 +68,5 @@ def require_role(minimum_role: UserRole) -> Callable[[UserRole], UserRole]:
 
 require_viewer = require_role(UserRole.VIEWER)
 require_operator = require_role(UserRole.OPERATOR)
-require_commander = require_role(UserRole.COMMANDER)
+require_approver = require_role(UserRole.APPROVER)
 require_admin = require_role(UserRole.ADMIN)

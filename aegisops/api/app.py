@@ -202,7 +202,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     action="decision_created",
                     table_name="decisions",
                     record_id=str(decision.id),
-                    change_data={"actor": role.name.lower(), "scenario_id": result.scenario_id},
+                    change_data={"actor": role.value, "scenario_id": result.scenario_id},
                 )
             )
             response = cast(dict[str, object], result.model_dump(mode="json"))
@@ -270,7 +270,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Blocked decisions cannot be approved.",
                 )
-            actor_name = f"development-{role.name.lower()}"
+            actor_name = f"development-{role.value}"
             actor = session.query(User).filter_by(username=actor_name).one_or_none()
             if actor is None:
                 actor = User(
@@ -295,7 +295,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 table_name="decisions",
                 record_id=str(decision.id),
                 change_data={
-                    "actor": role.name.lower(),
+                    "actor": role.value,
                     "action": request_body.action,
                     "reason": request_body.reason,
                 },

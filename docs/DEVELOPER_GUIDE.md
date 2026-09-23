@@ -18,7 +18,7 @@ In a second terminal, run `npm run dev`. The frontend defaults to `http://localh
 
 ## Working with the API
 
-Decision endpoints require the development role dependency. A bearer token of `operator`, `commander`, or `admin` (optionally prefixed `role:`) meets the implemented check; without a token, development defaults to `VIEWER` and gets 403. This is scaffolding only—do not use it as real authentication.
+Roles are `viewer`, `operator`, `approver`, and `admin`, in increasing privilege (`aegisops/application/roles.py`, shared with the `roles` table). Creating or disposing of a decision requires `operator` or higher; reading one requires `viewer`. A bearer token of the role name (optionally prefixed `role:`) meets the check; without a token, development defaults to `viewer`, which gets 403 on writes (`tests/test_roles.py`). Note that an `operator` can still approve today; the separate approver requirement is not enforced yet. This is scaffolding only—do not use it as real authentication.
 
 ```bash
 curl 'http://localhost:8000/api/v1/scenarios?seed=42'
