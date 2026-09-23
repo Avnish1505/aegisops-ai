@@ -52,7 +52,12 @@ Settings are read from `AEGISOPS_`-prefixed environment variables (`aegisops/cor
 | Safety gates | ✅ An unmet critical requirement blocks the plan | `tests/test_decision_engine.py::test_engine_blocks_critical_unmet_capability` |
 | Road travel times | ✅ With `AEGISOPS_OSRM_URL` set, ETAs come from an OSRM table request (car profile), cached by input hash; the verifier re-checks every ETA against that matrix. If OSRM is down, straight-line estimates are used and the plan carries a visible degraded flag (banner plus a high-severity check). ⚠️ OSRM car speeds are free-flow: no traffic, closures or flooding | `aegisops/planning/osrm.py`; `tests/test_osrm.py` |
 | Verification | ✅ Every engine's plan goes through 19 deterministic checks (units, availability, duplicates, capability, quantities, travel times recomputed within max(1 min, 5%) and whether they are degraded fallbacks, critical coverage, objective vs the CP-SAT optimum, constraints, citations and quotes, SITREP numbers, approval flag, instruction-like report text). Any critical failure blocks; the API returns the full report | `aegisops/verification/verifier.py`; `tests/test_verifier.py`; `tests/test_llm_decision_engine.py` |
-| LLM engine (NVIDIA NIM) | ❌ **Not evaluated against a live model.** Every test uses a mocked HTTP response. Without `NVIDIA_API_KEY` it returns `blocked` | `tests/test_llm_decision_engine.py`; `tests/test_api.py::test_decision_endpoint_selects_llm_rag_engine` |
+| LLM client | ✅ One OpenAI-compatible client configured by env (default NVIDIA NIM, `nvidia/llama-3.1-nemotron-70b-instruct`). Output is schema-constrained (NIM `guided_json`, otherwise `response_format` JSON schema) and validated with Pydantic; each call logs model, prompt version, tokens, latency and estimated cost. Record/replay cassettes store no headers. ⚠️ Not yet run against the live endpoint, so `guided_json` support on this model is unconfirmed | `aegisops/llm/client.py`; `tests/test_llm_client.py` |
+| LLM allocation engine (`llm_rag`) | ⚠️ Kept as an experiment arm; it breaks the target rule (the LLM proposes assignments) and is only safe because the verifier blocks bad plans. **Not evaluated against a live model**: every test uses a mocked response. Without a key it returns `blocked` | `aegisops/infrastructure/llm_decision_engine.py`; `tests/test_llm_decision_engine.py` |
+| Read (free-text intake) | ✅ `POST /api/v1/intake/read`: English, Hindi or Hinglish report → incident candidate. Every field carries a quote; a field whose quote is not in the report, or whose number the quote does not state, is dropped and counted. Severity comes from deterministic rules R1–R9, not the model. Places are geocoded with a 1,819-entry Lucknow gazetteer built from OSM. ⚠️ Tested with mocked and oracle models only; no live accuracy yet | `aegisops/intake/`; `tests/test_reader.py` |
+| Constraint translator | ✅ `POST /api/v1/constraints/translate`: an operator note becomes one typed reserve / exclude / priority constraint, shown for confirmation; the solver only uses constraints the operator sends back. ⚠️ No live accuracy yet | `aegisops/intake/constraints.py`; `tests/test_constraint_translator.py`; `src/components/ConstraintPanel.tsx` |
+| Communicate | ✅ `POST /api/v1/decisions/{id}/drafts`: SITREP (ICS-201-style sections) and CAP 1.2 alert drafts. The model writes prose from verified facts; every number is re-checked and a draft that fails says so. CAP status is always `Draft`, scope `Private`; nothing is published. ⚠️ No live run yet | `aegisops/communication/reporter.py`; `tests/test_reporter.py` |
+| Tracing | ✅ OpenTelemetry spans with GenAI conventions (`chat` for model calls, `execute_tool` for travel matrix, solve, propose, verify). One decision is one trace across requests: read returns a W3C `traceparent`, the plan stores it, and decide/drafts join it. Compose exports to self-hosted Arize Phoenix (:6006) | `aegisops/telemetry/__init__.py`; `tests/test_telemetry.py` |
 | Retrieval | ⚠️ **Keyword hashing, not semantic search.** Tokens are hashed into 256 buckets and ranked by inner product | `aegisops/infrastructure/knowledge_retrieval.py`; `tests/test_knowledge_retrieval.py` |
 | Real facilities | ✅ Hospitals, fire stations and police stations inside Lucknow district (OSM boundary relation 1959018) are imported from a local OSM extract, never Overpass: 270 hospitals, 27 police stations, 3 fire stations in the 2026-09-22 extract. ⚠️ OSM maps only 3 fire stations in the district, fewer than exist. Units are stationed at them by documented exercise rules; OSM has no unit counts | `aegisops/geodata/`; `scripts/import_facilities.py`; `tests/test_geodata.py` |
 | Lucknow exercise | ✅ 20 fictional monsoon-flood incidents across Charbagh, Hazratganj, Aminabad, Chowk, Aliganj, Gomti Nagar, Indira Nagar, Alambagh and Kaiserbagh, placed at those localities' OSM place nodes, against 45 units (ambulances, boats, rescue teams, fire units) stationed at real facilities. Loadable from the console | `aegisops/geodata/exercise.py`; `scripts/seed_lucknow_exercise.py`; `tests/test_exercise.py` |
@@ -62,18 +67,31 @@ Settings are read from `AEGISOPS_`-prefixed environment variables (`aegisops/cor
 | Decision record | ✅ Stores the input scenario and its SHA-256, the plan, verification report, SITREP, constraints, travel matrix, and prompt/model versions. A stored record replays and re-verifies to the same result | `tests/test_persistence_integration.py::test_stored_decision_replays_and_reverifies_to_the_same_result` |
 | Audit log integrity | ✅ Decisions, verifications and dispositions append to a hash-chained `events` table; each event also hashes the decision/approval row it created. `GET /api/v1/audit/verify` reports the first broken link, and editing any event column, deleting an event, or editing a decision or approval row is detected. ⚠️ Deleting the newest event is only detectable against an externally kept `head_hash` | `aegisops/audit/event_log.py`; `tests/test_event_chain.py` |
 | Auth | ✅ JWT bearer tokens with `sub` and `role`: HS256 with `AEGISOPS_SECRET_KEY`, or RS256 against an OIDC JWKS. The server refuses to start outside development with the published dev key. ⚠️ The console only has the development sign-in (`/api/v1/dev/token`, mounted only when `AEGISOPS_ENVIRONMENT=development`); no OIDC login flow is built | `aegisops/api/auth.py`; `tests/test_auth.py` |
-| Free-text intake / message drafting | ❌ No LLM intake or drafting. ⚠️ A deterministic SITREP template is generated and its numbers verified | `aegisops/communication/sitrep.py` |
 | Multi-agent | ❌ None. `backend/agents/roles.py` holds data-only role descriptions | `backend/agents/roles.py` |
 | Database | ✅ Compose runs PostgreSQL 16 + PostGIS; locations are `geography(Point,4326)`. Every migration runs up, down and up again on PostGIS in CI, with a geography round trip and an API + audit-chain run. The unit tests use SQLite | `tests/test_postgres.py`; `docker-compose.yml` |
-| Evaluation | ✅ Golden-scenario regression suite for the rule-based engine | `sim/evaluation_harness.py`; `tests/test_evaluation_harness.py` |
-| Delivery | ✅ CI runs Python lint/types/tests (3.11), a PostGIS job, frontend lint/typecheck/build, and a container smoke test that requires 200 from `/health/ready` and a seeded `POST /api/v1/decisions` | `.github/workflows/ci.yml` |
+| Evaluation | ✅ Golden-scenario regression suite for the rule-based engine. ✅ LLM eval harness: 300 labelled reports (200 synthetic Lucknow reports in English/Hindi/Hinglish, 100 HumAID tweets by ID), 50 operator notes, 50 end-to-end scenarios and 100 OSRM scenarios for LLM vs CP-SAT, with bootstrap CIs. The scoring is checked against an oracle model. ❌ **Not run against a live model yet**: see Results | `evals/`; `tests/test_evals.py`; `tests/test_llm_vs_solver.py` |
+| Delivery | ✅ CI runs Python lint/types/tests (3.11), a PostGIS job, frontend lint/typecheck/build, and a container smoke test that requires 200 from `/health/ready` and a seeded `POST /api/v1/decisions`. A keyless smoke eval replays recorded LLM cassettes (⚠️ none recorded yet, so it only warns); the full eval is a manual workflow using the `NVIDIA_API_KEY` secret | `.github/workflows/ci.yml`; `.github/workflows/eval.yml` |
 | Logging | ✅ JSON logs carry an ISO-8601 UTC `timestamp`, `level`, and `request_id` | `tests/test_observability.py::test_json_log_record_has_real_timestamp_and_level` |
+
+## Results
+
+**No live-model results yet.** The eval harness (`evals/run.py`) and the LLM-vs-solver experiment
+(`evals/llm_vs_solver.py`) are built, and their scoring is tested against oracle models
+(`tests/test_evals.py`, `tests/test_llm_vs_solver.py`). Neither has been run against the hosted
+model, because no API key was available. Until they have, this README claims no accuracy,
+feasibility, latency or cost numbers for any LLM step. The earlier "LLM blocked 30/30" report is
+superseded: it was produced without a key ([reports/README.md](reports/README.md)).
 
 ## Architecture
 
 ```text
-console (src/, Leaflet + OSM tiles) -> FastAPI (aegisops/api) -> DecisionService
-   engine proposal (solver | rule_based | llm_rag) -> CP-SAT reference -> SITREP -> verify
+console (src/, Leaflet + OSM tiles) -> FastAPI (aegisops/api)
+   read: report -> LLM (aegisops/intake/reader.py) -> grounded candidate, rule-based severity
+   note -> LLM (aegisops/intake/constraints.py) -> proposed constraint -> operator confirms
+   DecisionService: engine proposal (solver | rule_based | llm_rag) -> CP-SAT reference
+                    -> SITREP -> verify
+   drafts: verified plan -> LLM prose (aegisops/communication/reporter.py) -> numbers re-checked
+   traces: OpenTelemetry -> Arize Phoenix (compose)
    travel times: OSRM table service (aegisops/planning/osrm.py), straight-line fallback
    storage: PostgreSQL/PostGIS (SQLite in tests): decisions, approvals, events (hash chain),
             facilities, units, exercises, alerts

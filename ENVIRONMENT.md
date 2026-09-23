@@ -65,8 +65,9 @@ docker run -p 8000:8000 \
 ### Docker Compose
 
 Run `./scripts/osrm_prepare.sh` once, then `docker compose up --build`: PostgreSQL + PostGIS
-(`db`), OSRM (`osrm`, port 5000), the API (port 8000), the feed worker and the console (port 5173,
-built by `Dockerfile.ui`). The API service migrates, imports facilities from `data/osm`, seeds
+(`db`), OSRM (`osrm`; host port 5001, since macOS AirPlay holds 5000), Arize Phoenix for traces
+(port 6006), the API (port 8000), the feed worker and the console (port 5173, built by
+`Dockerfile.ui`). Put `AEGISOPS_LLM_API_KEY` in `./.env` (gitignored) to enable the LLM steps. The API service migrates, imports facilities from `data/osm`, seeds
 the Lucknow exercise and plans it once (`scripts/compose_api_start.sh`). Data lives in the
 `pgdata` volume.
 
