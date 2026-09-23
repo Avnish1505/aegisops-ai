@@ -38,8 +38,8 @@ All runtime configuration is via environment variables, defined in
 (variable names, defaults, and an example `.env`). At minimum, set for any non-local
 deployment:
 
-- `SECRET_KEY` — must be overridden from its development default.
-- `DATABASE_URL` — SQLite is the default; use a managed Postgres URL for production.
+- `AEGISOPS_SECRET_KEY` — override the development default (reserved; not used for signing yet).
+- `AEGISOPS_DATABASE_URL` — SQLite is the default and the only backend exercised by tests.
 - `AEGISOPS_ENVIRONMENT=production` and `AEGISOPS_DEBUG=false` — disables `/docs` and
   verbose debug logging.
 - `AEGISOPS_CORS_ORIGINS` — set to the exact production frontend origin(s); never wildcard.
@@ -56,7 +56,7 @@ docker build -t aegisops-ai .
 docker run -p 8000:8000 \
   -e AEGISOPS_ENVIRONMENT=production \
   -e AEGISOPS_DEBUG=false \
-  -e SECRET_KEY=<your-secret> \
+  -e AEGISOPS_SECRET_KEY=<your-secret> \
   aegisops-ai
 ```
 
@@ -121,10 +121,10 @@ warranted.
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
 | Container marked unhealthy immediately | `HEALTHCHECK` can't reach `/health/live`, or the app failed to boot | Check `docker logs` for a startup exception before assuming the healthcheck itself is broken |
-| Environment variable seems to have no effect | `aegisops/core/config.py` uses case-sensitive settings matching the exact field name (e.g. `debug`, `rate_limit`); some documented `AEGISOPS_`-prefixed and uppercase names are not currently read by the application | Verify the effective value via `GET /health/ready` (`environment` field) or by inspecting `Settings()` directly; this is a known documentation/code mismatch, not a deployment error |
-| CORS errors in the browser | `AEGISOPS_CORS_ORIGINS` does not include the calling origin, or was set on a build where it isn't actually read (see above) | Confirm the origin is in the configured list and matches exactly, including scheme and port |
+| Environment variable seems to have no effect | Settings are read only from `AEGISOPS_`-prefixed names (`aegisops/core/config.py`); an unprefixed `DEBUG` or `DATABASE_URL` is ignored | Rename the variable with the `AEGISOPS_` prefix; verify via `GET /health/ready` (`environment` field) |
+| CORS errors in the browser | `AEGISOPS_CORS_ORIGINS` does not include the calling origin, or the variable is missing the `AEGISOPS_` prefix | Confirm the origin is in the configured list and matches exactly, including scheme and port |
 | `/docs` returns 404 in production | Expected — `docs_url` is disabled unless `AEGISOPS_DEBUG` is effectively true | Do not enable debug mode in production to "fix" this |
-| Database errors after deploy | `DATABASE_URL` unreachable, or the `/app/data` volume isn't mounted/writable for SQLite | Check volume mounts and, for managed databases, network/credentials |
+| Database errors after deploy | `AEGISOPS_DATABASE_URL` unreachable, or the `/app/data` volume isn't mounted/writable for SQLite | Check volume mounts and, for managed databases, network/credentials |
 | Vercel build fails | `npm run build` fails locally too | Run `npm run build` locally first; fix the underlying `tsc`/`vite` error before redeploying |
 | Railway deploy fails | `Dockerfile` build step fails | Reproduce with `docker build -t aegisops-ai .` locally to see the same error without waiting on Railway |
 | Sustained 429 responses | Legitimate traffic exceeding `RATE_LIMIT`, or an abusive client | Distinguish the two before raising the limit; block abusive sources at the platform layer |

@@ -9,8 +9,8 @@ services:
       - AEGISOPS_ENVIRONMENT=development
       - AEGISOPS_DEBUG=true
       - AEGISOPS_CORS_ORIGINS=http://localhost:3000,http://localhost:5173
-      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
-      - RATE_LIMIT=100/minute
+      - AEGISOPS_SECRET_KEY=${AEGISOPS_SECRET_KEY:-dev-secret-key-change-in-production}
+      - AEGISOPS_RATE_LIMIT=100/minute
     volumes:
       - .:/app:cached
       - /app/data  # Ensure the data directory is mounted as a volume for persistence

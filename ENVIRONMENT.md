@@ -4,16 +4,18 @@ This document outlines the environment variables and deployment configurations f
 
 ## Environment Variables
 
-The application uses the following environment variables. Default values are provided where applicable.
+Every setting in `aegisops/core/config.py` is read from an `AEGISOPS_`-prefixed environment variable;
+names are case-insensitive. Unprefixed names such as `SECRET_KEY` or `DATABASE_URL` are ignored
+(`tests/test_config.py`).
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `AEGISOPS_ENVIRONMENT` | Runtime mode (`development`, `staging`, `production`) | `development` | No |
-| `AEGISOPS_DEBUG` | Enable debug mode (`true` or `false`) | `true` | No |
+| `AEGISOPS_DEBUG` | Enable debug mode (`true` or `false`) | `false` | No |
 | `AEGISOPS_CORS_ORIGINS` | Comma-separated list of allowed CORS origins | `http://localhost:3000,http://localhost:5173` | No |
-| `SECRET_KEY` | Secret key for cryptographic operations (e.g., JWT) | `your_secret_key_here` (must be changed in production) | Yes |
-| `RATE_LIMIT` | Rate limit for API endpoints (format: `X/minute` or `X/second`) | `100/minute` | No |
-| `DATABASE_URL` | Database connection string (SQLite by default) | `sqlite:///./aegisops.db` | No |
+| `AEGISOPS_SECRET_KEY` | Secret key reserved for future token signing (not used yet) | `CHANGE_ME_TO_A_COMPLEX_SECRET` | No |
+| `AEGISOPS_RATE_LIMIT` | Rate limit for API endpoints (format: `X/minute` or `X/second`) | `100/minute` | No |
+| `AEGISOPS_DATABASE_URL` | Database connection string (SQLite by default) | `sqlite:///./aegisops.db` | No |
 
 ### Example `.env` file
 
@@ -21,9 +23,9 @@ The application uses the following environment variables. Default values are pro
 AEGISOPS_ENVIRONMENT=production
 AEGISOPS_DEBUG=false
 AEGISOPS_CORS_ORIGINS=https://example.com,https://app.example.com
-SECRET_KEY=a_very_strong_secret_key_here
-RATE_LIMIT=100/minute
-DATABASE_URL=postgresql://user:password@localhost:5432/aegisops
+AEGISOPS_SECRET_KEY=a_very_strong_secret_key_here
+AEGISOPS_RATE_LIMIT=100/minute
+AEGISOPS_DATABASE_URL=sqlite:////app/data/aegisops.db
 ```
 
 ## Deployment Configurations
@@ -42,8 +44,8 @@ docker build -t aegisops-ai .
 docker run -p 8000:8000 \
   -e AEGISOPS_ENVIRONMENT=production \
   -e AEGISOPS_DEBUG=false \
-  -e SECRET_KEY=your_secret_key_here \
-  -e RATE_LIMIT=100/minute \
+  -e AEGISOPS_SECRET_KEY=your_secret_key_here \
+  -e AEGISOPS_RATE_LIMIT=100/minute \
   aegisops-ai
 ```
 
@@ -84,6 +86,6 @@ The frontend can be deployed to Vercel using the `vercel.json` configuration.
 
 ## Notes
 
-- Never commit sensitive values (like `SECRET_KEY`) to version control. Use environment variables or secret management tools.
+- Never commit sensitive values (like `AEGISOPS_SECRET_KEY`) to version control. Use environment variables or secret management tools.
 - The `.env.example` file provides a template for local development. Copy it to `.env` and adjust as needed.
 - In production, ensure that `AEGISOPS_DEBUG` is set to `false` and `AEGISOPS_ENVIRONMENT` is set to `production`.

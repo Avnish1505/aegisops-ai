@@ -6,7 +6,6 @@ import logging
 import time
 import uuid
 from collections.abc import Awaitable, Callable
-from pathlib import Path
 from typing import Annotated, Literal, Protocol, cast
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
@@ -141,9 +140,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     engines: dict[str, DecisionEngine] = {
         "rule_based": RuleBasedDecisionEngine(),
-        "llm_rag": LLMDecisionEngine(
-            RetrievalEngine(Path(__file__).parents[2] / "knowledge")
-        ),
+        "llm_rag": LLMDecisionEngine(RetrievalEngine(active_settings.knowledge_base_path)),
     }
 
     @app.get("/health/live", tags=["health"])
