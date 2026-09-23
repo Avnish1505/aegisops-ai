@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
 from aegisops.domain.models import (
     Assignment,
@@ -15,6 +15,8 @@ from aegisops.domain.models import (
     UnmetRequirement,
 )
 from aegisops.domain.policy import evaluate_safety_gates, priority_score, travel_minutes
+from aegisops.planning.constraints import PlanningConstraint, excluded_unit_ids
+from aegisops.planning.travel import EuclideanProvider, TravelTimeMatrix
 
 
 class RuleBasedDecisionEngine:
@@ -26,8 +28,20 @@ class RuleBasedDecisionEngine:
 
     name = "rule_based_baseline_v1"
 
-    def recommend(self, scenario: Scenario) -> DecisionResult:
-        available = {resource.id: resource for resource in scenario.resources if resource.available}
+    def recommend(
+        self,
+        scenario: Scenario,
+        travel_times: TravelTimeMatrix | None = None,
+        constraints: Sequence[PlanningConstraint] = (),
+    ) -> DecisionResult:
+        """Greedy baseline. Honours ExcludeUnit; ignores reserves and priority boosts."""
+        matrix = travel_times or EuclideanProvider().matrix(scenario)
+        excluded = excluded_unit_ids(constraints)
+        available = {
+            resource.id: resource
+            for resource in scenario.resources
+            if resource.available and resource.id not in excluded
+        }
         assignments: list[Assignment] = []
         unmet: list[UnmetRequirement] = []
         trace = ["Validated scenario schema and selected available qualified resources only."]
@@ -38,12 +52,12 @@ class RuleBasedDecisionEngine:
         for incident in ordered_incidents:
             trace.append(f"Assessed {incident.id} with priority {priority_score(incident):.2f}.")
             for resource_type, required_quantity in incident.resources_needed.items():
-                candidates = self._rank_candidates(available.values(), resource_type, incident)
+                candidates = self._rank_candidates(
+                    available.values(), resource_type, incident, matrix
+                )
                 allocated = 0
                 for resource in candidates[:required_quantity]:
-                    duration = travel_minutes(
-                        resource.location, incident.location, resource.eta_speed
-                    )
+                    duration = self._minutes(matrix, resource, incident)
                     assignments.append(
                         Assignment(
                             incident_id=incident.id,
@@ -82,14 +96,22 @@ class RuleBasedDecisionEngine:
         )
 
     @staticmethod
+    def _minutes(matrix: TravelTimeMatrix, resource: Resource, incident: Incident) -> float:
+        minutes = matrix.get(resource.id, incident.id)
+        if minutes is None:
+            return travel_minutes(resource.location, incident.location, resource.eta_speed)
+        return minutes
+
+    @classmethod
     def _rank_candidates(
-        resources: Iterable[Resource], resource_type: ResourceType, incident: Incident
+        cls,
+        resources: Iterable[Resource],
+        resource_type: ResourceType,
+        incident: Incident,
+        matrix: TravelTimeMatrix,
     ) -> list[Resource]:
         typed_resources = [resource for resource in resources if resource.type == resource_type]
         return sorted(
             typed_resources,
-            key=lambda resource: (
-                travel_minutes(resource.location, incident.location, resource.eta_speed),
-                resource.id,
-            ),
+            key=lambda resource: (cls._minutes(matrix, resource, incident), resource.id),
         )

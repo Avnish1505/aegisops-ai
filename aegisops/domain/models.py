@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from aegisops.domain.canonical import canonical_json, sha256_hex
 
 
 class IncidentType(StrEnum):
@@ -86,10 +86,7 @@ class Scenario(DomainModel):
 
     def sha256(self) -> str:
         """Hash the canonical JSON form so a stored decision can be tied to its exact input."""
-        canonical = json.dumps(
-            self.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
-        )
-        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        return sha256_hex(canonical_json(self.model_dump(mode="json")))
 
     def to_dict(self) -> dict[str, object]:
         """Compatibility helper for prototype callers; prefer ``model_dump(mode='json')``."""
