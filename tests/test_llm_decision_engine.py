@@ -1,13 +1,16 @@
 import json
+from collections.abc import Callable
 
-import httpx
+import httpx2
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
 from aegisops.application.decision_service import DecisionOutcome, DecisionService
+from aegisops.core.config import Settings
 from aegisops.domain.models import Evidence, Scenario
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 from aegisops.infrastructure.prompt_templates import DEFAULT_PROMPT_VERSION, get_prompt_template
+from aegisops.llm.client import LLMClient
 from aegisops.planning.travel import StraightLineProvider
 
 
@@ -41,17 +44,27 @@ class StructuredStubRetrievalEngine(StubRetrievalEngine):
         ]
 
 
+def _llm(
+    handler: Callable[[httpx2.Request], httpx2.Response] | None = None,
+    *,
+    key: str | None = "test-key",
+    model: str = "nvidia/llama-3.1-nemotron-70b-instruct",
+) -> LLMClient:
+    """The shared LLM client over a mocked NIM (or with no key, as in an unconfigured deploy)."""
+    settings = Settings(environment="test", llm_api_key=SecretStr(key) if key else None,
+                        llm_model=model, llm_max_retries=0)
+    http_client = httpx2.Client(transport=httpx2.MockTransport(handler)) if handler else None
+    return LLMClient(settings, http_client=http_client)
+
+
 def _mock_engine(response_payload: dict[str, object]) -> LLMDecisionEngine:
     """Return an LLM engine with a deterministic NIM response."""
     return LLMDecisionEngine(
         StubRetrievalEngine(),
-        api_key="test-key",
-        client=httpx.Client(
-            transport=httpx.MockTransport(
-                lambda request: httpx.Response(
-                    200,
-                    json={"choices": [{"message": {"content": json.dumps(response_payload)}}]},
-                )
+        llm=_llm(
+            lambda request: httpx2.Response(
+                200,
+                json={"choices": [{"message": {"content": json.dumps(response_payload)}}]},
             )
         ),
     )
@@ -138,20 +151,19 @@ def test_llm_decision_engine_returns_valid_nim_json() -> None:
         "decision_trace": ["Validated NIM result."],
     }
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         assert request.headers["Authorization"] == "Bearer test-key"
         assert (
             json.loads(request.content)["messages"][0]["content"]
             == get_prompt_template().system_message
         )
-        return httpx.Response(
+        return httpx2.Response(
             200, json={"choices": [{"message": {"content": json.dumps(expected_result)}}]}
         )
 
     result = LLMDecisionEngine(
         retrieval_engine,
-        api_key="test-key",
-        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        llm=_llm(handler),
     ).recommend(scenario)
 
     assert retrieval_engine.query == "high fire"
@@ -184,7 +196,7 @@ def test_llm_decision_engine_records_configured_model_and_prompt_versions(
         }
     )
     result = LLMDecisionEngine(
-        StubRetrievalEngine(), model="test-model-v2"
+        StubRetrievalEngine(), llm=_llm(key=None, model="test-model-v2")
     ).recommend(scenario)
 
     assert result.status.value == "blocked"
@@ -201,10 +213,10 @@ def test_llm_decision_engine_rejects_unknown_prompt_version() -> None:
 def test_llm_decision_engine_retries_once_then_blocks() -> None:
     calls = 0
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         nonlocal calls
         calls += 1
-        return httpx.Response(200, json={"choices": [{"message": {"content": "not json"}}]})
+        return httpx2.Response(200, json={"choices": [{"message": {"content": "not json"}}]})
 
     scenario = Scenario.model_validate(
         {
@@ -225,8 +237,7 @@ def test_llm_decision_engine_retries_once_then_blocks() -> None:
     )
     result = LLMDecisionEngine(
         StubRetrievalEngine(),
-        api_key="test-key",
-        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        llm=_llm(handler),
     ).recommend(scenario)
 
     assert calls == 2
@@ -244,17 +255,16 @@ def _decide(
     proposal: dict[str, object],
     retrieval: StubRetrievalEngine | None = None,
 ) -> DecisionOutcome:
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         body = json.loads(json.loads(request.content)["messages"][1]["content"])
         assert "travel_minutes" in body
-        return httpx.Response(
+        return httpx2.Response(
             200, json={"choices": [{"message": {"content": json.dumps(proposal)}}]}
         )
 
     engine = LLMDecisionEngine(
         retrieval or StructuredStubRetrievalEngine(),
-        api_key="test-key",
-        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        llm=_llm(handler),
     )
     return DecisionService({"llm_rag": engine}, StraightLineProvider()).decide(scenario, "llm_rag")
 
@@ -464,7 +474,7 @@ def test_unreachable_model_stays_blocked_even_when_checks_pass(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
-    engine = LLMDecisionEngine(StubRetrievalEngine())
+    engine = LLMDecisionEngine(StubRetrievalEngine(), llm=_llm(key=None))
 
     outcome = DecisionService({"llm_rag": engine}, StraightLineProvider()).decide(
         _scenario(resources=[]), "llm_rag"

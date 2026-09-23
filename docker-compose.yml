@@ -33,7 +33,8 @@ services:
     volumes:
       - ./data/osrm:/data:ro
     ports:
-      - "5000:5000"
+      # Host port 5001: macOS AirPlay Receiver holds 5000. Containers use http://osrm:5000.
+      - "5001:5000"
 
   phoenix:
     # Self-hosted Arize Phoenix: OTLP/HTTP collector at :6006/v1/traces and the trace UI.

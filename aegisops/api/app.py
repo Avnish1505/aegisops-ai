@@ -171,15 +171,17 @@ def create_app(
             ).model_dump(),
         )
 
+    llm = llm_client or LLMClient(active_settings)
     decision_service = DecisionService(
         {
             "rule_based": RuleBasedDecisionEngine(),
-            "llm_rag": LLMDecisionEngine(RetrievalEngine(active_settings.knowledge_base_path)),
+            "llm_rag": LLMDecisionEngine(
+                RetrievalEngine(active_settings.knowledge_base_path), llm=llm
+            ),
         },
         travel_provider or _default_travel_provider(active_settings),
     )
 
-    llm = llm_client or LLMClient(active_settings)
     gazetteer = Gazetteer.load(DEFAULT_GAZETTEER)
     reader = Reader(llm, gazetteer)
     translator = ConstraintTranslator(llm, gazetteer)
