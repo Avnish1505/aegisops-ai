@@ -23,3 +23,43 @@ jobs:
       - run: ruff check .
       - run: mypy --python-version 3.11 aegisops
       - run: pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t aegisops-ci .
+      - run: docker run -d --name aegisops -p 8000:8000 aegisops-ci
+      - name: Probe readiness and a seeded decision
+        run: |
+          for attempt in $(seq 1 30); do
+            curl -fsS http://localhost:8000/health/ready && break
+            sleep 2
+          done
+          ready=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/health/ready)
+          decision=$(curl -s -o decision.json -w '%{http_code}' \
+            -X POST http://localhost:8000/api/v1/decisions \
+            -H 'Content-Type: application/json' \
+            -H 'Authorization: Bearer role:operator' \
+            -d '{"seed": 42}')
+          echo "health/ready=$ready decisions=$decision"
+          cat decision.json
+          if [ "$ready" != "200" ] || [ "$decision" != "200" ]; then
+            exit 1
+          fi
+      - name: Container logs
+        if: failure()
+        run: docker logs aegisops
