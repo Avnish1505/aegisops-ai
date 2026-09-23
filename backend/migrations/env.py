@@ -3,6 +3,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from aegisops.core.config import Settings
 from backend.db.models import Base
 
 # this is the Alembic Config object, which provides
@@ -17,6 +18,12 @@ if config.config_file_name is not None:
 # add your model's MetaData object here
 # for 'autogenerate' support
 target_metadata = Base.metadata
+
+# The database URL comes from Settings (AEGISOPS_DATABASE_URL) so the app and its migrations
+# always target the same database. Callers such as tests may still set sqlalchemy.url
+# explicitly on the Alembic Config, which takes precedence.
+if not config.get_main_option("sqlalchemy.url"):
+    config.set_main_option("sqlalchemy.url", Settings().database_url.replace("%", "%%"))
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

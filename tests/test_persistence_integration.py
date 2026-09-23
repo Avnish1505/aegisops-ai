@@ -1,9 +1,10 @@
 from pathlib import Path
 
+import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import Session
 
 from aegisops.api.app import create_app
@@ -128,3 +129,14 @@ def test_blocked_decision_cannot_be_approved_or_create_disposition(tmp_path: Pat
 
     assert approval is None
     assert disposition_audit is None
+
+
+def test_migrations_target_database_from_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database_path = tmp_path / "from-settings.db"
+    monkeypatch.setenv("AEGISOPS_DATABASE_URL", f"sqlite:///{database_path}")
+
+    command.upgrade(Config(str(Path(__file__).parents[1] / "backend" / "alembic.ini")), "head")
+
+    assert "decisions" in inspect(create_engine(f"sqlite:///{database_path}")).get_table_names()
