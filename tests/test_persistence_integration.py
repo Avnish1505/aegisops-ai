@@ -8,10 +8,12 @@ from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import Session
 
 from aegisops.api.app import create_app
+from aegisops.application.scenario_service import generate_scenario
 from aegisops.core.config import Settings
 from aegisops.domain.models import Scenario
 from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
 from backend.db.models import Approval, AuditLog, Decision
+from backend.seed import DEMO_SEED, seed
 
 
 def _migrated_client(tmp_path: Path) -> tuple[TestClient, str]:
@@ -197,3 +199,16 @@ def test_get_unknown_decision_returns_404(tmp_path: Path) -> None:
     client, _ = _migrated_client(tmp_path)
 
     assert client.get("/api/v1/decisions/999").status_code == 404
+
+
+def test_seed_records_one_demo_decision_and_is_idempotent(tmp_path: Path) -> None:
+    client, database_url = _migrated_client(tmp_path)
+
+    first = seed(database_url)
+    second = seed(database_url)
+
+    assert first is not None
+    assert second is None
+    record = client.get(f"/api/v1/decisions/{first}").json()
+    assert record["scenario"] == generate_scenario(seed=DEMO_SEED).model_dump(mode="json")
+    assert record["status"] in {"blocked", "requires_human_approval"}
