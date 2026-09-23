@@ -1,139 +1,106 @@
-# AegisOps AI
+# AegisOps
 
-**Multi-Agent Crisis Intelligence & Decision Support Platform**
+AegisOps turns messy incident reports into solver-backed response plans that a human approves,
+with every number re-checked and every decision replayable. Research platform, not an emergency
+system.
 
-AegisOps AI is being engineered as a human-supervised crisis decision-support platform. Phase 1
-delivers the secure, reproducible backend foundation: typed scenario contracts, deterministic
-resource-allocation baseline, safety gates, audit-friendly decision traces, and delivery tooling.
-It is a research and portfolio platform, not an emergency dispatch system.
+That sentence describes where the project is going. The **Status** table below says what exists
+today, and every row points to the file or test that backs it.
 
 ## Safety position
 
-This service never dispatches resources. Every recommendation has `requires_human_approval: true`.
-`blocked` means a critical capability is unmet and escalation is mandatory. Do not connect it to
-emergency operations or use it with real personal or operational data.
+This service never dispatches resources. Every recommendation has `requires_human_approval: true`,
+and a `blocked` recommendation cannot be approved: the API returns 409. It works only on
+synthetic scenarios. Do not connect it to emergency operations or use it with real personal or
+operational data.
 
 ## Quick start
 
-Requires Python 3.11–3.13.
-
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements-dev.txt
-export AEGISOPS_DEBUG=true
-uvicorn backend.main:app --reload --port 8000
+docker compose up --build
 ```
 
-In another terminal:
+This starts the API on http://localhost:8000 and the operations console on http://localhost:5173
+(`docker-compose.yml`, `Dockerfile`, `Dockerfile.ui`). On first start the API applies migrations
+and records one demo decision for synthetic seed 42 (`backend/seed.py`). You can read it at
+http://localhost:8000/api/v1/decisions/1.
+
+Without Docker (Python 3.11–3.13, Node 22):
 
 ```bash
-curl 'http://localhost:8000/api/v1/scenarios?seed=42'
-curl -X POST http://localhost:8000/api/v1/decisions \
-  -H 'Content-Type: application/json' \
-  -d '{"seed": 42}'
-pytest
+python3 -m venv venv && source venv/bin/activate && pip install -r requirements-dev.txt
+alembic -c backend/alembic.ini upgrade head
+AEGISOPS_DEBUG=true uvicorn backend.main:app --reload --port 8000
+npm ci && npm run dev          # console on http://localhost:5173
 ```
 
-Development documentation is available at `http://localhost:8000/docs` when `AEGISOPS_DEBUG=true`.
-Explicitly configure browser origins with `AEGISOPS_CORS_ORIGINS`; the local default permits only
-the common development UI origins.
+Settings are read from `AEGISOPS_`-prefixed environment variables (`aegisops/core/config.py`,
+[ENVIRONMENT.md](ENVIRONMENT.md)).
+
+## Status
+
+| Area | State | Evidence |
+| --- | --- | --- |
+| Synthetic scenarios | ✅ The same seed always gives the same scenario | `aegisops/application/scenario_service.py`; `tests/test_api.py::test_scenario_endpoint_is_reproducible_and_sets_request_id` |
+| Planning | ⚠️ Greedy nearest-qualified baseline only; no CP-SAT solver yet. Travel time is straight-line distance on a synthetic grid | `aegisops/infrastructure/rule_based_engine.py`; `aegisops/domain/policy.py` (`travel_minutes`) |
+| Safety gates | ✅ An unmet critical requirement blocks the plan | `tests/test_decision_engine.py::test_engine_blocks_critical_unmet_capability` |
+| LLM output re-check | ✅ Unknown, duplicate, unavailable, or wrong-type resources are rejected. Travel times are recomputed and replace the model's claim; a gap above max(1 min, 5%) blocks the plan. Citations of evidence that wasn't retrieved are dropped | `aegisops/domain/policy.py`; `tests/test_llm_decision_engine.py` |
+| LLM engine (NVIDIA NIM) | ❌ **Not evaluated against a live model.** Every test uses a mocked HTTP response. Without `NVIDIA_API_KEY` it returns `blocked` | `tests/test_llm_decision_engine.py`; `tests/test_api.py::test_decision_endpoint_selects_llm_rag_engine` |
+| Retrieval | ⚠️ **Keyword hashing, not semantic search.** Tokens are hashed into 256 buckets and ranked by inner product | `aegisops/infrastructure/knowledge_retrieval.py`; `tests/test_knowledge_retrieval.py` |
+| Human decision | ✅ Approve/reject with a reason, written to an audit log. Blocked decisions return 409 | `tests/test_persistence_integration.py::test_blocked_decision_cannot_be_approved_or_create_disposition` |
+| Proposer ≠ approver | ❌ Not enforced yet; an `operator` can approve a decision they created | `aegisops/api/app.py` (`create_disposition`) |
+| Decision record | ✅ Stores the input scenario and its SHA-256, the plan, findings, evidence, and prompt/model versions. `GET /api/v1/decisions/{id}` returns it, and a stored scenario replays to the same plan | `tests/test_persistence_integration.py::test_stored_decision_replays_to_the_same_plan` |
+| Audit log integrity | ⚠️ Insert-only by convention; not hash-chained or tamper-evident | `backend/db/models.py` (`AuditLog`) |
+| Auth | ⚠️ **Development only.** The bearer token *is* the role name (`viewer`, `operator`, `approver`, `admin`) | `aegisops/api/security.py`; `tests/test_roles.py` |
+| Free-text intake / message drafting | ❌ Not implemented | None |
+| Multi-agent | ❌ None. `backend/agents/roles.py` holds data-only role descriptions | `backend/agents/roles.py` |
+| Database | ⚠️ SQLite is the only backend exercised by tests and the container | `tests/test_persistence_integration.py`; `Dockerfile` |
+| Evaluation | ✅ Golden-scenario regression suite for the rule-based engine | `sim/evaluation_harness.py`; `tests/test_evaluation_harness.py` |
+| Delivery | ✅ CI runs Python lint/types/tests (3.11), frontend lint/typecheck/build, and a container smoke test that requires 200 from `/health/ready` and a seeded `POST /api/v1/decisions` | `.github/workflows/ci.yml` |
+| Logging | ✅ JSON logs carry an ISO-8601 UTC `timestamp`, `level`, and `request_id` | `tests/test_observability.py::test_json_log_record_has_real_timestamp_and_level` |
 
 ## Architecture
 
 ```text
-HTTP client -> FastAPI API -> typed DecisionEngine port -> deterministic baseline
-                    |                   |                  |
-             validation/CORS/IDs   future LLM adapter   safety + human gate
+browser console (src/) -> FastAPI (aegisops/api) -> DecisionEngine -> verify (domain/policy.py)
+                                  |                   rule_based | llm_rag (NIM, re-checked)
+                                  +-> SQLite: decisions, approvals, audit_log (backend/db)
 ```
 
-The baseline is intentionally not an LLM. It provides an interpretable, repeatable control
-condition for later multi-agent research. A future agent adapter must remain behind the same port
-and cannot bypass validation, safety policy, evaluation, or human approval.
+The target pipeline is Read → Plan → Verify → Decide → Communicate → Record. In it, the LLM only
+parses input and drafts messages, and deterministic code checks every number before an operator
+sees it. The Status table lists which of those steps exist today.
 
 ## Repository layout
 
-- `aegisops/domain` — validated entities and transparent decision policies.
-- `aegisops/application` — use cases and ports.
-- `aegisops/infrastructure` — the deterministic baseline adapter.
-- `aegisops/api` — FastAPI transport, safe error handling, CORS, and observability headers.
-- `aegisops/integrity_analyzer` — isolated static-analysis toolkit (source loading, AST parsing,
-  scaffolded-function detection, and structured dict/JSON reports).
-- `backend` and `sim` — migration-compatible prototype entry points.
-- `tests` — unit and API acceptance tests.
-- `docs` — Phase 1 architecture, API, and security artifacts.
+- `aegisops/domain`: validated entities and deterministic policy/verification functions.
+- `aegisops/application`: scenario generation, ports, and the shared `UserRole` enum.
+- `aegisops/infrastructure`: rule-based and NIM engines, retrieval, decision persistence.
+- `aegisops/api`: FastAPI transport, dev-only role checks, error handling, headers.
+- `backend`: ASGI entry point, SQLAlchemy models, Alembic migrations, demo seed.
+- `sim`: golden scenarios, evaluation harness, engine comparison.
+- `src`: React + Vite operations console.
+- `tests`: pytest suite.
 
-## Benchmark: Analyzer vs Naive Baseline
+## Implementation Integrity Analyzer
 
-The Implementation Integrity Analyzer is evaluated against a labeled corpus of
-15 scenarios: 5 true-positive (one seeded integrity failure each), 5 clean
-(correctly wired, fully implemented code that must not be flagged), and 5 hard
-cases chosen to probe the limits of intra-file static analysis.
-
-The comparison point is a naive grep baseline that checks whether a
-safety-critical function name appears anywhere in the file.
-
-| Metric          | Naive Baseline | Analyzer |
-| --------------- | -------------- | -------- |
-| True positives  | 0              | 5        |
-| False positives | 0              | 4        |
-| False negatives | 6              | 1        |
-| True negatives  | 9              | 5        |
-| Precision       | n/a            | 0.556    |
-| Recall          | 0.000          | 0.833    |
-| MCC             | 0.000          | 0.389    |
-
-MCC is the headline metric: the corpus is small and class-imbalanced, so
-accuracy would be misleading.
-
-### Interpretation
-
-The baseline detects nothing (recall 0.000, undefined precision). This is not a
-strawman — it is the natural failure mode of string matching. A safety-critical
-function's name always appears in its own `def` line, so a text search cannot
-distinguish a gate that is *defined* from a gate that is actually *called*.
-Separating definition from invocation requires an AST-level call map, which is
-what the analyzer builds.
-
-The analyzer resolves all 10 easy scenarios correctly: 5 true positives and 5
-clean files with no false alarms. Its errors are concentrated entirely in the 5
-hard cases — 4 false positives and 1 false negative — and each corresponds to a
-limitation already documented in the module docstrings of `wiring_checker.py`
-and `scaffold_detector.py`: no alias resolution, no transitive call resolution
-through helpers, no `@abstractmethod` awareness, and no control-flow or ordering
-analysis (call-set presence only, not "runs before"). Nothing was excluded,
-retuned, or reweighted to improve these numbers.
-
-The error profile skews toward false positives rather than false negatives. For
-a safety-critical review tool this is the appropriate bias: a false alarm costs
-a developer one review, while a missed integrity violation ships an unguarded
-operation.
-
-### Reproducing
+A separate static-analysis research tool lives in `aegisops/integrity_analyzer`. Design,
+limitations, and its benchmark against a naive grep baseline:
+[docs/INTEGRITY_ANALYZER.md](docs/INTEGRITY_ANALYZER.md).
 
 ## Documentation
 
-- [Phase 1 Foundation](docs/PHASE_1_FOUNDATION.md)
 - [API Specification](docs/API.md)
-- [Security Threat Model](docs/SECURITY_THREAT_MODEL.md)
+- [Environment variables](ENVIRONMENT.md)
 - [Engineering and Research Roadmap](docs/ROADMAP.md)
-- [Implementation Integrity Analyzer](docs/INTEGRITY_ANALYZER.md)
-- [Software Requirements Specification](docs/SRS.md)
-- [Software Architecture Document](docs/SAD.md)
-- [High-Level Design](docs/HLD.md)
-- [Low-Level Design](docs/LLD.md)
-- [Database Specification](docs/DATABASE_SPECIFICATION.md)
-- [Test Strategy](docs/TEST_STRATEGY.md)
+- [Security Threat Model](docs/SECURITY_THREAT_MODEL.md)
 - [Developer Guide](docs/DEVELOPER_GUIDE.md)
-- [User Manual](docs/USER_MANUAL.md)
-- [Incident Response Runbook](docs/INCIDENT_RESPONSE_RUNBOOK.md)
 - [Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
-- [Research Proposal](docs/RESEARCH_PROPOSAL.md)
-- [IEEE-Style Paper Draft](docs/IEEE_PAPER_DRAFT.md)
+- [Implementation Integrity Analyzer](docs/INTEGRITY_ANALYZER.md)
+- Design documents: [SRS](docs/SRS.md), [SAD](docs/SAD.md), [HLD](docs/HLD.md), [LLD](docs/LLD.md),
+  [Database](docs/DATABASE_SPECIFICATION.md), [Test Strategy](docs/TEST_STRATEGY.md)
+- Research drafts: [Research Proposal](docs/RESEARCH_PROPOSAL.md),
+  [Paper draft](docs/IEEE_PAPER_DRAFT.md)
 
-## Delivery
-
-`Dockerfile` runs the backend as a non-root user. GitHub Actions runs tests, Ruff, and mypy for
-Python 3.11 and 3.12. Before public deployment, add authenticated access, role-based approval
-workflows, persistent signed audit logs, gateway rate limiting, secret management, monitoring, and
-formal safety/security review.
+The design documents and research drafts were written in earlier phases. Where they disagree with
+this README's Status table, the table and the code are authoritative.
