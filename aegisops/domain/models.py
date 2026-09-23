@@ -49,6 +49,9 @@ class Incident(DomainModel):
     people_affected: Annotated[int, Field(ge=0, le=1_000_000)]
     reported_at_min: Annotated[int, Field(ge=0, le=1_000_000)]
     resources_needed: dict[ResourceType, Annotated[int, Field(ge=1, le=100)]]
+    # The raw field report. Untrusted free text: never interpreted as instructions, and scanned
+    # for instruction-like content by the verifier.
+    report: Annotated[str | None, Field(max_length=2_000)] = None
 
     @field_validator("resources_needed")
     @classmethod
@@ -93,12 +96,20 @@ class Scenario(DomainModel):
         return self.model_dump(mode="json")
 
 
+class Citation(DomainModel):
+    """A claim that ``quote`` appears verbatim in retrieved evidence ``evidence_id``."""
+
+    evidence_id: Annotated[str, Field(min_length=1, max_length=64)]
+    quote: Annotated[str, Field(max_length=1_000)]
+
+
 class Assignment(DomainModel):
     incident_id: str
     resource_id: str
     resource_type: ResourceType
     travel_minutes: Annotated[float, Field(ge=0)]
     evidence_ids: list[str] = Field(default_factory=list)
+    citations: list[Citation] = Field(default_factory=list)
 
 
 class UnmetRequirement(DomainModel):
