@@ -10,7 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -49,6 +49,24 @@ class Settings(BaseSettings):
     osrm_url: str | None = None
     osrm_profile: str = "driving"
 
+    # LLM (aegisops/llm/client.py): any OpenAI-compatible endpoint; NVIDIA NIM by default.
+    llm_base_url: str = "https://integrate.api.nvidia.com/v1"
+    llm_model: str = "nvidia/llama-3.1-nemotron-70b-instruct"
+    llm_api_key: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("AEGISOPS_LLM_API_KEY", "NVIDIA_API_KEY")
+    )
+    llm_provider: Literal["auto", "nvidia", "openai"] = "auto"
+    llm_timeout_s: float = 60.0
+    llm_max_retries: int = 2
+    # Cost estimates only. NIM's hosted API runs on trial credits without a per-token price, so
+    # the default is the OpenRouter list price for meta-llama/llama-3.3-70b-instruct on
+    # 2026-09-23 (USD per million tokens). Set your own for other providers.
+    llm_price_in_usd_per_mtok: float = 0.10
+    llm_price_out_usd_per_mtok: float = 0.32
+    # Record/replay LLM HTTP traffic (tests, the CI smoke eval): off | record | replay.
+    llm_cassette_mode: Literal["off", "record", "replay"] = "off"
+    llm_cassette_dir: Path | None = None
+
     # Hazard-feed ingestion (aegisops/ingestion/worker.py).
     ingest_sachet_rss_url: str = "https://sachet.ndma.gov.in/cap_public_website/rss/rss_india.xml"
     ingest_usgs_url: str = (
@@ -68,6 +86,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="AEGISOPS_",
+        populate_by_name=True,
         case_sensitive=False,
         env_file=".env",
         env_file_encoding="utf-8",

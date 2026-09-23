@@ -159,7 +159,7 @@ def test_llm_decision_engine_returns_valid_nim_json() -> None:
     assert result.assignments == []
     assert result.requires_human_approval is True
     assert result.prompt_version == DEFAULT_PROMPT_VERSION
-    assert result.model_version == "meta/llama-3.1-8b-instruct"
+    assert result.model_version == "nvidia/llama-3.1-nemotron-70b-instruct"
 
 
 def test_llm_decision_engine_records_configured_model_and_prompt_versions(
