@@ -192,7 +192,7 @@ def test_decision_model(db_session):
         engine="test_engine",
         status="requires_human_approval",
         requires_human_approval=True,
-        advisory_confidence=0.8,
+        coverage=0.8,
         decision_trace=[{"step": 1, "note": "initial"}],
     )
     db_session.add(decision)
@@ -204,7 +204,7 @@ def test_decision_model(db_session):
     assert decision.engine == "test_engine"
     assert decision.status == "requires_human_approval"
     assert decision.requires_human_approval is True
-    assert decision.advisory_confidence == 0.8
+    assert decision.coverage == 0.8
     assert decision.decision_trace == [{"step": 1, "note": "initial"}]
     assert decision.created_at is not None
 
@@ -221,7 +221,7 @@ def test_approval_model(db_session):
         engine="test_engine",
         status="requires_human_approval",
         requires_human_approval=True,
-        advisory_confidence=0.8,
+        coverage=0.8,
         decision_trace=[],
     )
     db_session.add_all([user, decision])

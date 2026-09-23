@@ -15,7 +15,7 @@ The implemented system includes a React operations console, a FastAPI API, a det
 | FR-03 | A scenario shall contain 1–100 incidents and up to 500 resources, validated against the public model. |
 | FR-04 | The rule-based engine shall rank incidents by severity, affected people, and report age; it shall allocate only available, capability-matched resources. |
 | FR-05 | A resource shall not be allocated more than once in a recommendation. |
-| FR-06 | The result shall state assignments, unmet requirements, safety findings, decision trace, coverage-based advisory confidence, and a human-approval requirement. |
+| FR-06 | The result shall state assignments, unmet requirements, safety findings, decision trace, `coverage` (share of required units assigned), and a human-approval requirement. |
 | FR-07 | A critical incident with unmet demand shall produce `blocked`; high-severity unmet demand shall produce a review finding. |
 | FR-08 | Decision endpoints shall require at least the `OPERATOR` role. The currently implemented bearer token is a development role token, not production identity verification. |
 | FR-09 | The optional `llm_rag` engine shall retrieve up to three local knowledge documents, request JSON from NVIDIA NIM, validate it as a `DecisionResult`, and block after two failed attempts or missing credentials. |
@@ -27,7 +27,7 @@ The implemented system includes a React operations console, a FastAPI API, a det
 - Responses receive a request ID and no-store, nosniff, and no-referrer headers. CORS allows configured origins only.
 - The baseline is deterministic for a fixed input. Generated scenarios are reproducible when seeded.
 - The system uses synthetic grid coordinates, not geographic data, and should not receive real personal or operational data.
-- `advisory_confidence` measures allocation coverage only; it is not a probability of success or outcome prediction.
+- `coverage` measures allocation coverage only; it is not a probability of success or outcome prediction.
 - Docker runs the API as a non-root user. Interactive API documentation is enabled only when debug is true.
 
 ## 4. Explicit exclusions

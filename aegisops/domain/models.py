@@ -160,7 +160,7 @@ class DecisionResult(DomainModel):
     assignments: list[Assignment]
     unmet_requirements: list[UnmetRequirement]
     safety_findings: list[SafetyFinding]
-    advisory_confidence: Annotated[float, Field(ge=0, le=1)]
+    coverage: Annotated[float, Field(ge=0, le=1)]
     decision_trace: list[str]
     evidence_ids: list[str] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)

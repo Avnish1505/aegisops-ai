@@ -120,7 +120,7 @@ class Decision(Base):
     engine: Mapped[str] = mapped_column(String(100))
     status: Mapped[str] = mapped_column(String(50))
     requires_human_approval: Mapped[bool] = mapped_column(Boolean, default=True)
-    advisory_confidence: Mapped[float] = mapped_column(nullable=False)
+    coverage: Mapped[float] = mapped_column(nullable=False)
     decision_trace: Mapped[list[dict[str, object]]] = mapped_column(JSON)
     # Full record needed to replay a decision. Nullable only for rows written before these
     # columns existed; the API always populates them.

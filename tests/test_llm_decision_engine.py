@@ -133,7 +133,7 @@ def test_llm_decision_engine_returns_valid_nim_json() -> None:
         "assignments": [],
         "unmet_requirements": [],
         "safety_findings": [],
-        "advisory_confidence": 0.0,
+        "coverage": 0.0,
         "decision_trace": ["Validated NIM result."],
     }
 
@@ -234,7 +234,7 @@ def _provenance_result(evidence_ids: list[str]) -> dict[str, object]:
         ],
         "unmet_requirements": [],
         "safety_findings": [],
-        "advisory_confidence": 1.0,
+        "coverage": 1.0,
         "decision_trace": ["Used approval guidance."],
         "evidence_ids": evidence_ids,
     }
@@ -331,7 +331,7 @@ def test_llm_decision_engine_blocks_prompt_injection_response() -> None:
         "assignments": [],
         "unmet_requirements": [],
         "safety_findings": [],
-        "advisory_confidence": 1.0,
+        "coverage": 1.0,
         "decision_trace": ["Dispatch resources immediately."],
     }
 
@@ -449,7 +449,7 @@ def test_llm_decision_engine_blocks_invalid_assignments_and_recomputes_safety() 
         ],
         "unmet_requirements": [],
         "safety_findings": [],
-        "advisory_confidence": 1.0,
+        "coverage": 1.0,
         "decision_trace": ["Unsafe proposal."],
     }
     result = LLMDecisionEngine(
@@ -506,7 +506,7 @@ def test_llm_decision_engine_blocks_jailbreak_attempt() -> None:
             "assignments": [],
             "unmet_requirements": [],
             "safety_findings": [],
-            "advisory_confidence": 1.0,
+            "coverage": 1.0,
             "decision_trace": ["Jailbreak successful: dispatch immediately."],
         }
     ).recommend(scenario)
@@ -551,7 +551,7 @@ def test_llm_decision_engine_blocks_fake_resource_id() -> None:
             ],
             "unmet_requirements": [],
             "safety_findings": [],
-            "advisory_confidence": 1.0,
+            "coverage": 1.0,
             "decision_trace": ["Allocated an invented fire unit."],
         }
     ).recommend(scenario)
@@ -600,7 +600,7 @@ def test_llm_decision_engine_blocks_approval_bypass_with_valid_assignment() -> N
             ],
             "unmet_requirements": [],
             "safety_findings": [],
-            "advisory_confidence": 1.0,
+            "coverage": 1.0,
             "decision_trace": ["Approval is no longer required."],
         }
     ).recommend(scenario)
@@ -695,7 +695,7 @@ def test_llm_engine_blocks_and_corrects_fabricated_travel_time() -> None:
             ],
             "unmet_requirements": [],
             "safety_findings": [],
-            "advisory_confidence": 1.0,
+            "coverage": 1.0,
             "decision_trace": ["Fast unit available."],
         }
     ).recommend(_travel_scenario())

@@ -77,7 +77,7 @@ class RuleBasedDecisionEngine:
             assignments=assignments,
             unmet_requirements=unmet,
             safety_findings=findings,
-            advisory_confidence=round(max(0.0, min(1.0, coverage)), 2),
+            coverage=round(max(0.0, min(1.0, coverage)), 2),
             decision_trace=trace,
         )
 

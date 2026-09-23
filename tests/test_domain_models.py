@@ -124,7 +124,7 @@ def test_decision_result_evidence_ids_default():
         assignments=[assignment],
         unmet_requirements=[unmet],
         safety_findings=[safety],
-        advisory_confidence=0.8,
+        coverage=0.8,
         decision_trace=["step1", "step2"],
     )
     assert decision.evidence_ids == []
@@ -146,7 +146,7 @@ def test_decision_result_evidence_ids_can_be_set():
         assignments=[assignment],
         unmet_requirements=[],
         safety_findings=[],
-        advisory_confidence=0.8,
+        coverage=0.8,
         decision_trace=["step1"],
         evidence_ids=["ev1", "ev2"],
     )

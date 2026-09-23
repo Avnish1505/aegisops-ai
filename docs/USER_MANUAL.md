@@ -18,7 +18,7 @@ Start the API on port 8000 and the Vite frontend as described in the Developer G
 
 1. Select **Get recommendation**.
 2. Review the top status. **Allocation blocked — escalation required** means a critical capability is unmet. It does not mean the system has taken action.
-3. Inspect proposed routes, unmet requirements, safety findings, coverage-based advisory confidence, and the decision trace. Hover, focus, or select a route row to highlight it on the grid.
+3. Inspect proposed routes, unmet requirements, safety findings, `coverage` (share of required units assigned), and the decision trace. Hover, focus, or select a route row to highlight it on the grid.
 4. Treat every output as advisory. Confidence is allocation coverage, not an outcome forecast.
 
 The **Approve recommendation** and **Reject** controls only update the current browser view. They do not submit, record, authorize, or dispatch anything. Refreshing or generating another scenario clears this local indication.

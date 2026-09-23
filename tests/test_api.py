@@ -73,3 +73,10 @@ def test_legacy_prototype_routes_are_removed() -> None:
     assert client.get("/health").status_code == 404
     assert client.get("/scenario?seed=3").status_code == 404
     assert client.post("/simulate", json={"seed": 3}).status_code == 404
+
+
+def test_decision_reports_coverage_not_advisory_confidence() -> None:
+    body = _client().post("/api/v1/decisions", json={"seed": 3}).json()
+
+    assert 0.0 <= body["coverage"] <= 1.0
+    assert "advisory_confidence" not in body

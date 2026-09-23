@@ -143,7 +143,7 @@ class LLMDecisionEngine:
             assignments=assignments,
             unmet_requirements=unmet,
             safety_findings=findings,
-            advisory_confidence=round(max(0.0, min(1.0, coverage)), 2),
+            coverage=round(max(0.0, min(1.0, coverage)), 2),
             decision_trace=result.decision_trace
             + ["Revalidated LLM assignments and safety state against the scenario."],
             evidence_ids=[item.id for item in evidence],
@@ -197,7 +197,7 @@ class LLMDecisionEngine:
                     message="NVIDIA NIM decision generation failed; human escalation is required.",
                 )
             ],
-            advisory_confidence=0.0,
+            coverage=0.0,
             decision_trace=[
                 f"Retrieved {len(evidence)} local knowledge snippets.",
                 reason,

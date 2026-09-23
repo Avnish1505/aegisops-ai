@@ -23,7 +23,7 @@ export function ResultsPanel({ decision, onActiveAssignment }: ResultsPanelProps
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const isBlocked = decision.status === 'blocked'
-  const confidence = Math.round(decision.advisory_confidence * 100)
+  const coverage = Math.round(decision.coverage * 100)
 
   const setActive = (assignment: Assignment | null) => onActiveAssignment(assignment ?? pinnedAssignment)
   const isPinned = (assignment: Assignment) =>
@@ -154,13 +154,13 @@ export function ResultsPanel({ decision, onActiveAssignment }: ResultsPanelProps
         <Panel>
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="panel-heading">Advisory confidence</h3>
-              <p className="mt-1 text-xs text-ink-500">Allocation coverage, not outcome probability.</p>
+              <h3 className="panel-heading">Coverage</h3>
+              <p className="mt-1 text-xs text-ink-500">Share of required units assigned, not outcome probability.</p>
             </div>
-            <span className="font-mono text-2xl font-semibold text-ink-900">{confidence}%</span>
+            <span className="font-mono text-2xl font-semibold text-ink-900">{coverage}%</span>
           </div>
           <div className="mt-4 h-2 overflow-hidden bg-ink-200">
-            <div className={`h-full transition-all ${isBlocked ? 'bg-status-blocked' : 'bg-accent-700'}`} style={{ width: `${confidence}%` }} />
+            <div className={`h-full transition-all ${isBlocked ? 'bg-status-blocked' : 'bg-accent-700'}`} style={{ width: `${coverage}%` }} />
           </div>
         </Panel>
         <Panel>

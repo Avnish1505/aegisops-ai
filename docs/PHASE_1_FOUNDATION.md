@@ -49,7 +49,7 @@ is unavailable. The implemented NIM adapter uses local retrieval and server-side
 but is still advisory and blocks on missing credentials or invalid output. A global optimiser may
 improve aggregate allocation but needs stakeholder-agreed objectives and is a later candidate.
 
-The advisory confidence is allocation coverage, not calibrated outcome probability. A future LLM
+`coverage` is the share of required units assigned, not calibrated outcome probability. A future LLM
 adapter must use server-validated structured output, evidence references, policy gates,
 model/prompt versioning, and human approval. Evaluate it against this baseline using seed-controlled
 and hand-authored scenarios: coverage, response time, invalid allocations, critical-unmet rate,

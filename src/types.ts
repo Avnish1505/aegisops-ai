@@ -56,7 +56,7 @@ export interface Decision {
   assignments: Assignment[]
   unmet_requirements: UnmetRequirement[]
   safety_findings: SafetyFinding[]
-  advisory_confidence: number
+  coverage: number
   decision_trace: string[]
   // Set by POST /api/v1/decisions on every response — required to record a disposition.
   decision_id: number

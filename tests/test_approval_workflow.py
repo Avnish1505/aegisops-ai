@@ -57,7 +57,7 @@ def make_minimal_decision_result() -> dict:
         ],
         "unmet_requirements": [],
         "safety_findings": [],
-        "advisory_confidence": 0.85,
+        "coverage": 0.85,
         "decision_trace": ["rule1", "rule2"],
         "evidence_ids": [],
     }
