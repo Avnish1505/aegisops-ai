@@ -23,7 +23,7 @@ export function AppShell({ statusLine, children }: AppShellProps) {
               <h1 className="text-base font-semibold tracking-tight text-ink-900">
                 AegisOps <span className="text-ink-500">AI</span>
               </h1>
-              <p className="text-[10px] uppercase tracking-[0.16em] text-ink-500">Synthetic crisis decision support</p>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-ink-500">Crisis decision support · research exercise</p>
             </div>
           </div>
           {statusLine}

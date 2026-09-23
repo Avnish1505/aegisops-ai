@@ -25,6 +25,32 @@ jobs:
       - run: pytest
       - run: python scripts/fault_report.py --check
 
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        # Multi-arch build of the official docker-postgis images (same as docker-compose.yml).
+        image: imresamu/postgis:16-3.5
+        env:
+          POSTGRES_USER: aegisops
+          POSTGRES_PASSWORD: aegisops
+          POSTGRES_DB: aegisops
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aegisops" --health-interval 5s --health-timeout 3s
+          --health-retries 24
+    env:
+      AEGISOPS_TEST_POSTGRES_URL: postgresql+psycopg://aegisops:aegisops@localhost:5432/aegisops
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements-dev.txt
+      - run: pytest tests/test_postgres.py -rs
+
   frontend:
     runs-on: ubuntu-latest
     steps:

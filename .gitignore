@@ -13,3 +13,4 @@ dist/
 *.db
 .hypothesis/
 data/
+.sf/

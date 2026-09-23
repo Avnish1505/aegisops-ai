@@ -84,7 +84,7 @@ def test_seeded_exercise_is_served_and_plannable(tmp_path: Path) -> None:
     import_facilities(FIXTURE, url)
 
     scenario, decision_id = seed_exercise(FIXTURE, url, record=True, settings=Settings())
-    seed_exercise(FIXTURE, url)  # re-running replaces the saved exercise
+    _, repeat_id = seed_exercise(FIXTURE, url, record=True, settings=Settings())
     client = TestClient(
         create_app(Settings(environment="test", database_url=url)), headers=bearer()
     )
@@ -94,6 +94,7 @@ def test_seeded_exercise_is_served_and_plannable(tmp_path: Path) -> None:
     planned = client.post("/api/v1/decisions", json={"scenario": served}).json()
 
     assert decision_id == 1
+    assert repeat_id is None  # the same scenario is not planned twice
     assert [(e["id"], e["incidents"], e["resources"]) for e in listed] == [
         (EXERCISE_ID, 20, len(scenario.resources))
     ]

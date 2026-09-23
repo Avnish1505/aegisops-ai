@@ -6,7 +6,8 @@ Locality positions come from OSM place nodes in the local extract; units come fr
 table filled by scripts/import_facilities.py (run that first). Incidents and reports are
 fictional exercise injects (aegisops/geodata/exercise.py). --record-decision also plans the
 exercise once with the configured travel-time provider (OSRM when AEGISOPS_OSRM_URL is set)
-and stores that verified decision. Re-running replaces the saved exercise.
+and stores that verified decision, unless one already exists for the same scenario. Re-running
+replaces the saved exercise.
 """
 
 from __future__ import annotations
@@ -32,7 +33,7 @@ from aegisops.geodata.exercise import (  # noqa: E402
 )
 from aegisops.geodata.osm import read_extract  # noqa: E402
 from aegisops.infrastructure.decision_store import record_decision  # noqa: E402
-from backend.db.models import Exercise, Unit  # noqa: E402
+from backend.db.models import Decision, Exercise, Unit  # noqa: E402
 
 
 def seed_exercise(
@@ -68,7 +69,10 @@ def seed_exercise(
                 scenario_sha256=scenario.sha256(),
             )
         )
-        if record:
+        already_planned = session.scalar(
+            select(Decision.id).where(Decision.scenario_sha256 == scenario.sha256()).limit(1)
+        )
+        if record and already_planned is None:
             provider = _default_travel_provider(settings or Settings())
             outcome = DecisionService({}, provider).decide(scenario)
             decision_id = record_decision(session, scenario, outcome, proposer="exercise-seed").id

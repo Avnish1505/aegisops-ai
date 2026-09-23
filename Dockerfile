@@ -10,7 +10,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends gcc curl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends gcc curl libexpat1 && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
 COPY requirements.txt .
@@ -20,6 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY aegisops ./aegisops
 COPY backend ./backend
 COPY knowledge ./knowledge
+COPY scripts ./scripts
 
 # Create a non-root user
 RUN useradd --create-home --uid 10001 appuser

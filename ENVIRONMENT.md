@@ -58,14 +58,15 @@ docker run -p 8000:8000 \
 
 ### Docker Compose
 
-`docker compose up` builds and starts the API (http://localhost:8000) and the operations console
-(http://localhost:5173, built by `Dockerfile.ui`). On first start the API applies migrations and
-records one demo decision for synthetic seed 42 (`backend/seed.py`), readable at
-`GET /api/v1/decisions/1`. Data lives in the `aegisops-data` volume.
+Run `./scripts/osrm_prepare.sh` once, then `docker compose up --build`: PostgreSQL + PostGIS
+(`db`), OSRM (`osrm`, port 5000), the API (port 8000), the feed worker and the console (port 5173,
+built by `Dockerfile.ui`). The API service migrates, imports facilities from `data/osm`, seeds
+the Lucknow exercise and plans it once (`scripts/compose_api_start.sh`). Data lives in the
+`pgdata` volume.
 
 ```bash
 docker compose up --build   # start
-docker compose down -v      # stop and delete the data volume
+docker compose down -v      # stop and delete the database volume
 ```
 
 ### Railway

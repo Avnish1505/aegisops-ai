@@ -10,20 +10,25 @@ today, and every row points to the file or test that backs it.
 ## Safety position
 
 This service never dispatches resources. Every recommendation has `requires_human_approval: true`,
-and a `blocked` recommendation cannot be approved: the API returns 409. It works only on
-synthetic scenarios. Do not connect it to emergency operations or use it with real personal or
+and a `blocked` recommendation cannot be approved: the API returns 409. It plans synthetic
+scenarios and a fictional exercise set on real Lucknow places; it has no connection to any
+emergency service. Do not connect it to emergency operations or use it with real personal or
 operational data.
 
 ## Quick start
 
 ```bash
+./scripts/osrm_prepare.sh     # once: ~350 MB Geofabrik download, Lucknow clip, OSRM graph (~2 min)
 docker compose up --build
 ```
 
-This starts the API on http://localhost:8000 and the operations console on http://localhost:5173
-(`docker-compose.yml`, `Dockerfile`, `Dockerfile.ui`). On first start the API applies migrations
-and records one demo decision for synthetic seed 42 (`backend/seed.py`). You can read it at
-http://localhost:8000/api/v1/decisions/1.
+`scripts/osrm_prepare.sh` needs Docker and about 1.5 GB of free disk; it writes `data/`
+(gitignored) and records the source, checksum and OSM timestamp in `data/osm/SOURCE.txt`. Compose
+then runs PostgreSQL + PostGIS, OSRM (car profile), the API, the feed worker and the console
+(`docker-compose.yml`). On start the API migrates the database, imports Lucknow facilities, seeds
+the exercise and plans it once on OSRM road times (`scripts/compose_api_start.sh`). Open
+http://localhost:5173, choose **Lucknow monsoon flood exercise**, then **Get recommendation**.
+Without the prepared data the API seeds a synthetic decision instead.
 
 Without Docker (Python 3.11–3.13, Node 22):
 
@@ -59,17 +64,20 @@ Settings are read from `AEGISOPS_`-prefixed environment variables (`aegisops/cor
 | Auth | ✅ JWT bearer tokens with `sub` and `role`: HS256 with `AEGISOPS_SECRET_KEY`, or RS256 against an OIDC JWKS. The server refuses to start outside development with the published dev key. ⚠️ The console only has the development sign-in (`/api/v1/dev/token`, mounted only when `AEGISOPS_ENVIRONMENT=development`); no OIDC login flow is built | `aegisops/api/auth.py`; `tests/test_auth.py` |
 | Free-text intake / message drafting | ❌ No LLM intake or drafting. ⚠️ A deterministic SITREP template is generated and its numbers verified | `aegisops/communication/sitrep.py` |
 | Multi-agent | ❌ None. `backend/agents/roles.py` holds data-only role descriptions | `backend/agents/roles.py` |
-| Database | ⚠️ SQLite is the only backend exercised by tests and the container | `tests/test_persistence_integration.py`; `Dockerfile` |
+| Database | ✅ Compose runs PostgreSQL 16 + PostGIS; locations are `geography(Point,4326)`. Every migration runs up, down and up again on PostGIS in CI, with a geography round trip and an API + audit-chain run. The unit tests use SQLite | `tests/test_postgres.py`; `docker-compose.yml` |
 | Evaluation | ✅ Golden-scenario regression suite for the rule-based engine | `sim/evaluation_harness.py`; `tests/test_evaluation_harness.py` |
-| Delivery | ✅ CI runs Python lint/types/tests (3.11), frontend lint/typecheck/build, and a container smoke test that requires 200 from `/health/ready` and a seeded `POST /api/v1/decisions` | `.github/workflows/ci.yml` |
+| Delivery | ✅ CI runs Python lint/types/tests (3.11), a PostGIS job, frontend lint/typecheck/build, and a container smoke test that requires 200 from `/health/ready` and a seeded `POST /api/v1/decisions` | `.github/workflows/ci.yml` |
 | Logging | ✅ JSON logs carry an ISO-8601 UTC `timestamp`, `level`, and `request_id` | `tests/test_observability.py::test_json_log_record_has_real_timestamp_and_level` |
 
 ## Architecture
 
 ```text
-browser console (src/) -> FastAPI (aegisops/api) -> DecisionEngine -> verify (domain/policy.py)
-                                  |                   rule_based | llm_rag (NIM, re-checked)
-                                  +-> SQLite: decisions, approvals, audit_log (backend/db)
+console (src/, Leaflet + OSM tiles) -> FastAPI (aegisops/api) -> DecisionService
+   engine proposal (solver | rule_based | llm_rag) -> CP-SAT reference -> SITREP -> verify
+   travel times: OSRM table service (aegisops/planning/osrm.py), straight-line fallback
+   storage: PostgreSQL/PostGIS (SQLite in tests): decisions, approvals, events (hash chain),
+            facilities, units, exercises, alerts
+feed worker (aegisops/ingestion/worker.py): SACHET CAP, USGS, GDACS -> alerts
 ```
 
 The target pipeline is Read → Plan → Verify → Decide → Communicate → Record. In it, the LLM only
@@ -92,6 +100,22 @@ sees it. The Status table lists which of those steps exist today.
 A separate static-analysis research tool lives in `aegisops/integrity_analyzer`. Design,
 limitations, and its benchmark against a naive grep baseline:
 [docs/INTEGRITY_ANALYZER.md](docs/INTEGRITY_ANALYZER.md).
+
+## Data sources and licences
+
+| Source | Used for | Licence / terms |
+| --- | --- | --- |
+| [OpenStreetMap](https://www.openstreetmap.org) via [Geofabrik](https://download.geofabrik.de/asia/india.html) India extracts | Road network (OSRM), hospitals, fire and police stations, locality places, district boundary (relation 1959018) | Map data © OpenStreetMap contributors, [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Derived data in `data/` stays under the ODbL. |
+| OpenStreetMap tiles (`tile.openstreetmap.org`) | Console basemap | © OpenStreetMap contributors; subject to the [OSMF tile usage policy](https://operations.osmfoundation.org/policies/tiles/). Set `VITE_TILE_URL` for heavier use. |
+| [OSRM](https://project-osrm.org) `osrm-backend` v6.0.0 | Road travel-time matrices | BSD 2-Clause (software) |
+| [NDMA SACHET](https://sachet.ndma.gov.in) CAP feed (`cap_public_website/rss/rss_india.xml`) | Official Indian disaster alerts (CAP 1.2) | Published by the National Disaster Management Authority, Government of India; see the SACHET portal for terms |
+| [USGS Earthquake Hazards](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php) `all_day` GeoJSON | Earthquake events | U.S. Geological Survey data; public domain unless noted |
+| [GDACS](https://www.gdacs.org) event list API | Global disaster events | Global Disaster Alert and Coordination System (UN / European Commission); see gdacs.org for terms of use |
+
+The Lucknow exercise incidents, reports and casualty figures are fictional
+(`aegisops/geodata/exercise.py`). Unit counts at each facility are an exercise assumption
+(`aegisops/geodata/units.py`); OpenStreetMap only supplies the facility locations. OSM coverage is
+incomplete (for example it maps 3 fire stations in the district).
 
 ## Documentation
 

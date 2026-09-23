@@ -7,9 +7,13 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
+from auth_helpers import bearer
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
+from aegisops.api.app import create_app
+from aegisops.core.config import Settings
 from backend.db.models import Incident
 
 URL = os.environ.get("AEGISOPS_TEST_POSTGRES_URL")
@@ -68,3 +72,29 @@ def test_locations_are_postgis_geography_and_round_trip(migrated: str) -> None:
     assert stored is not None and stored.location == (26.832, 80.9219)
     assert column_type == "geography(Point,4326)"
     assert 3_100 < metres < 3_350  # Charbagh to Hazratganj is about 3.2 km as the crow flies
+
+
+def test_api_decision_approval_and_audit_chain_on_postgres(migrated: str) -> None:
+    client = TestClient(
+        create_app(Settings(environment="test", database_url=migrated)), headers=bearer("alice")
+    )
+    decision = None
+    for seed in range(20):
+        body = client.post("/api/v1/decisions", json={"seed": seed}).json()
+        if body["status"] == "requires_human_approval":
+            decision = body
+            break
+    assert decision is not None
+
+    approved = client.post(
+        f"/api/v1/decisions/{decision['decision_id']}/disposition",
+        json={"action": "approve", "reason": "Reviewed on PostGIS."},
+        headers=bearer("bob", "approver"),
+    )
+    chain = client.get("/api/v1/audit/verify").json()
+    record = client.get(f"/api/v1/decisions/{decision['decision_id']}").json()
+
+    assert approved.status_code == 200
+    assert chain["ok"] is True and chain["events_checked"] >= 3
+    assert record["scenario"]["incidents"][0]["location"].keys() == {"lat", "lon"}
+    assert record["approvals"][0]["actor"] == "bob"
