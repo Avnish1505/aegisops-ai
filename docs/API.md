@@ -7,13 +7,16 @@ The canonical interactive OpenAPI definition is served at `/docs` in development
 | GET | `/health/live` | Process liveness probe |
 | GET | `/health/ready` | Application readiness probe |
 | GET | `/api/v1/scenarios?seed=42` | Generate a reproducible synthetic scenario |
-| POST | `/api/v1/decisions?engine=rule_based` | Produce a human-gated allocation recommendation |
+| POST | `/api/v1/decisions?engine=solver` | Produce a verified, human-gated plan (`solver` default; `rule_based`, `llm_rag`) |
 | GET | `/api/v1/decisions/{id}` | Read a stored decision (scenario, plan, findings, evidence, approvals) |
 | POST | `/api/v1/decisions/{id}/disposition` | Record an approve/reject with a reason |
 
 `POST /api/v1/decisions` accepts either a typed `scenario` or a `seed`; omitting both generates a
-non-repeatable synthetic scenario. `engine` is `rule_based` by default and may be `llm_rag` for
-the optional NVIDIA NIM adapter. Unknown fields are rejected. The route requires an `OPERATOR` or
+non-repeatable synthetic scenario, plus optional typed `constraints` (`reserve`, `exclude_unit`,
+`priority_boost`). `engine` is `solver` (CP-SAT) by default, `rule_based` (greedy baseline) or
+`llm_rag` (NVIDIA NIM). Every engine's plan is verified; the response carries `verification`
+(verdict and every check), `drafts` (the SITREP), `objective`, `reference_objective`,
+`solve_status` and `infeasibility`. Unknown fields are rejected. The route requires an `OPERATOR` or
 higher development role token (for example, `Authorization: Bearer operator`); this is not
 production authentication. Every response contains `requires_human_approval: true`. `status:
 blocked` means a critical requirement is unmet or the NIM adapter safely failed; it is not a

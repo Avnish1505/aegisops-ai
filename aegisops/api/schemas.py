@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from aegisops.domain.models import Scenario
+from aegisops.planning.constraints import PlanningConstraint
 
 
 class ScenarioDecisionRequest(BaseModel):
@@ -17,6 +18,9 @@ class ScenarioDecisionRequest(BaseModel):
     scenario: Scenario | None = None
     seed: Annotated[int | None, Field(ge=0, le=2_147_483_647)] = None
     max_turns: Annotated[int, Field(ge=1, le=20)] = 4
+    constraints: Annotated[list[PlanningConstraint], Field(max_length=100)] = Field(
+        default_factory=list
+    )
 
 
 class DecisionDispositionRequest(BaseModel):

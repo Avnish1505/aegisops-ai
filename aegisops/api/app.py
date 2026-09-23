@@ -6,7 +6,7 @@ import logging
 import time
 import uuid
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Literal, Protocol, cast
+from typing import Annotated, Literal, cast
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
@@ -24,25 +24,25 @@ from aegisops.api.schemas import (
     ScenarioDecisionRequest,
 )
 from aegisops.api.security import require_operator, require_viewer
+from aegisops.application.decision_service import DecisionService
 from aegisops.application.roles import UserRole
 from aegisops.application.scenario_service import generate_scenario
 from aegisops.core.config import Settings
 from aegisops.core.logging import configure_logging, request_id_var
-from aegisops.domain.models import DecisionResult, Scenario
-from aegisops.infrastructure.decision_store import record_decision
+from aegisops.domain.models import Scenario
+from aegisops.infrastructure.decision_store import record_decision, serialize_decision
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 from aegisops.infrastructure.retrieval_engine import RetrievalEngine
 from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
+from aegisops.planning.travel import EuclideanProvider, TravelTimeProvider
 from backend.db.models import Approval, AuditLog, Base, Decision, User
 
 logger = logging.getLogger(__name__)
 
 
-class DecisionEngine(Protocol):
-    def recommend(self, scenario: Scenario) -> DecisionResult: ...
-
-
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, *, travel_provider: TravelTimeProvider | None = None
+) -> FastAPI:
     """Build the API with injected configuration for deterministic testing."""
     active_settings = settings or Settings()
     configure_logging(active_settings.debug)
@@ -139,10 +139,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ).model_dump(),
         )
 
-    engines: dict[str, DecisionEngine] = {
-        "rule_based": RuleBasedDecisionEngine(),
-        "llm_rag": LLMDecisionEngine(RetrievalEngine(active_settings.knowledge_base_path)),
-    }
+    decision_service = DecisionService(
+        {
+            "rule_based": RuleBasedDecisionEngine(),
+            "llm_rag": LLMDecisionEngine(RetrievalEngine(active_settings.knowledge_base_path)),
+        },
+        travel_provider or EuclideanProvider(),
+    )
 
     @app.get("/health/live", tags=["health"])
     @limiter.limit(active_settings.rate_limit)
@@ -169,18 +172,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request: Request,
         request_body: ScenarioDecisionRequest,
         role: Annotated[UserRole, Depends(require_operator)],
-        engine: Literal["rule_based", "llm_rag"] = "rule_based",
+        engine: Literal["solver", "rule_based", "llm_rag"] = "solver",
     ) -> dict[str, object]:
         scenario: Scenario = (
             request_body.scenario or generate_scenario(seed=request_body.seed)
         )
-        result: DecisionResult = engines[engine].recommend(scenario)
+        outcome = decision_service.decide(scenario, engine, request_body.constraints)
 
         with session_factory.begin() as session:
-            decision = record_decision(session, scenario, result, actor=role.value)
-            response = cast(dict[str, object], result.model_dump(mode="json"))
-            response["decision_id"] = decision.id
-        return response
+            decision = record_decision(session, scenario, outcome, actor=role.value)
+            return serialize_decision(decision)
 
     @app.get("/api/v1/decisions/{decision_id}", tags=["decisions"])
     async def get_decision(
@@ -196,33 +197,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Decision not found.",
                 )
-            return {
-                "decision_id": decision.id,
-                "scenario_id": decision.scenario_id,
-                "scenario_sha256": decision.scenario_sha256,
-                "scenario": decision.scenario,
-                "engine": decision.engine,
-                "status": decision.status,
-                "requires_human_approval": decision.requires_human_approval,
-                "coverage": decision.coverage,
-                "assignments": decision.assignments,
-                "unmet_requirements": decision.unmet_requirements,
-                "safety_findings": decision.safety_findings,
-                "evidence": decision.evidence,
-                "decision_trace": decision.decision_trace,
-                "prompt_version": decision.prompt_version,
-                "model_version": decision.model_version,
-                "created_at": decision.created_at.isoformat(),
-                "approvals": [
-                    {
-                        "disposition_id": approval.id,
-                        "action": "approve" if approval.approved else "reject",
-                        "actor": approval.user.username,
-                        "timestamp": approval.commented_at.isoformat(),
-                    }
-                    for approval in decision.approvals
-                ],
-            }
+            return serialize_decision(decision)
 
     @app.post("/api/v1/decisions/{decision_id}/disposition", tags=["decisions"])
     async def create_disposition(

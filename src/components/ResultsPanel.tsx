@@ -5,6 +5,7 @@ import { humanize, shortId } from '../lib/format'
 import { Panel } from './Panel'
 import { SectionHeader } from './SectionHeader'
 import { StatusBadge } from './StatusBadge'
+import { VerificationPanel } from './VerificationPanel'
 import { ActionButton, SecondaryButton } from './buttons'
 
 interface ResultsPanelProps {
@@ -190,6 +191,8 @@ export function ResultsPanel({ decision, onActiveAssignment }: ResultsPanelProps
           </div>
         </Panel>
       </div>
+
+      <VerificationPanel decision={decision} />
 
       <Panel>
         <div className="flex items-center justify-between">

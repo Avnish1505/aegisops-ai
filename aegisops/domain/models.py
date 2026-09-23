@@ -108,7 +108,6 @@ class Assignment(DomainModel):
     resource_id: str
     resource_type: ResourceType
     travel_minutes: Annotated[float, Field(ge=0)]
-    evidence_ids: list[str] = Field(default_factory=list)
     citations: list[Citation] = Field(default_factory=list)
 
 

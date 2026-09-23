@@ -153,7 +153,7 @@ def test_decision_result_evidence_ids_can_be_set():
     assert decision.evidence_ids == ["ev1", "ev2"]
 
 
-def test_assignment_evidence_ids_default_for_compatibility():
+def test_assignment_citations_default_to_empty():
     assignment = Assignment(
         incident_id="inc1",
         resource_id="res1",
@@ -161,7 +161,7 @@ def test_assignment_evidence_ids_default_for_compatibility():
         travel_minutes=5.0,
     )
 
-    assert assignment.evidence_ids == []
+    assert assignment.citations == []
 
 
 # Existing model tests to ensure we didn't break anything

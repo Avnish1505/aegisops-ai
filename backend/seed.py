@@ -9,10 +9,11 @@ from __future__ import annotations
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
+from aegisops.application.decision_service import DecisionService
 from aegisops.application.scenario_service import generate_scenario
 from aegisops.core.config import Settings
 from aegisops.infrastructure.decision_store import record_decision
-from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
+from aegisops.planning.travel import EuclideanProvider
 from backend.db.models import Decision
 
 DEMO_SEED = 42
@@ -25,8 +26,8 @@ def seed(database_url: str) -> int | None:
         if session.scalar(select(func.count()).select_from(Decision)):
             return None
         scenario = generate_scenario(seed=DEMO_SEED)
-        result = RuleBasedDecisionEngine().recommend(scenario)
-        return record_decision(session, scenario, result, actor="seed").id
+        outcome = DecisionService({}, EuclideanProvider()).decide(scenario)
+        return record_decision(session, scenario, outcome, actor="seed").id
 
 
 def main() -> None:

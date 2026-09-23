@@ -4,25 +4,26 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Sequence
 
 import httpx
 from pydantic import ValidationError
 
 from aegisops.application.ports import RetrievalPort
 from aegisops.domain.models import (
-    Assignment,
     DecisionResult,
     DecisionStatus,
     Evidence,
     SafetyFinding,
     Scenario,
 )
-from aegisops.domain.policy import validate_llm_recommendation
 from aegisops.infrastructure.prompt_templates import (
     DEFAULT_PROMPT_VERSION,
     PromptTemplate,
     get_prompt_template,
 )
+from aegisops.planning.constraints import PlanningConstraint
+from aegisops.planning.travel import EuclideanProvider, TravelTimeMatrix
 
 NIM_CHAT_COMPLETIONS_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 DEFAULT_NIM_MODEL = "meta/llama-3.1-8b-instruct"
@@ -48,8 +49,13 @@ class LLMDecisionEngine:
         self._model = model or os.getenv("NVIDIA_NIM_MODEL", DEFAULT_NIM_MODEL)
         self._prompt: PromptTemplate = get_prompt_template(prompt_version)
 
-    def recommend(self, scenario: Scenario) -> DecisionResult:
-        """Return a validated NIM result or block after one retry."""
+    def recommend(
+        self,
+        scenario: Scenario,
+        travel_times: TravelTimeMatrix | None = None,
+        constraints: Sequence[PlanningConstraint] = (),
+    ) -> DecisionResult:
+        """Return the model's proposal as-is for verification, or block after one retry."""
         query = " ".join(
             f"{incident.severity} {incident.type}"
             for incident in scenario.incidents
@@ -59,10 +65,10 @@ class LLMDecisionEngine:
             return self._blocked_result(
                 scenario, evidence, "NVIDIA API credentials are unavailable."
             )
-
+        matrix = travel_times or EuclideanProvider().matrix(scenario)
         for _ in range(2):
             try:
-                return self._request_decision(scenario, snippets, evidence)
+                return self._request_decision(scenario, snippets, evidence, matrix, constraints)
             except (httpx.HTTPError, KeyError, TypeError, ValueError, ValidationError):
                 continue
         return self._blocked_result(
@@ -87,7 +93,12 @@ class LLMDecisionEngine:
         ]
 
     def _request_decision(
-        self, scenario: Scenario, snippets: list[str], evidence: list[Evidence]
+        self,
+        scenario: Scenario,
+        snippets: list[str],
+        evidence: list[Evidence],
+        travel_times: TravelTimeMatrix,
+        constraints: Sequence[PlanningConstraint],
     ) -> DecisionResult:
         response = self._client.post(
             NIM_CHAT_COMPLETIONS_URL,
@@ -109,6 +120,10 @@ class LLMDecisionEngine:
                         "content": json.dumps(
                             {
                                 "scenario": scenario.model_dump(mode="json"),
+                                "travel_minutes": travel_times.minutes,
+                                "constraints": [
+                                    item.model_dump(mode="json") for item in constraints
+                                ],
                                 "knowledge_snippets": snippets,
                                 "evidence": [item.model_dump(mode="json") for item in evidence],
                             }
@@ -119,67 +134,28 @@ class LLMDecisionEngine:
         )
         response.raise_for_status()
         content = response.json()["choices"][0]["message"]["content"]
-        result = DecisionResult.model_validate(json.loads(content))
-        if result.scenario_id != scenario.scenario_id:
+        proposal = DecisionResult.model_validate(json.loads(content))
+        if proposal.scenario_id != scenario.scenario_id:
             raise ValueError("NIM response scenario_id does not match the request")
-        assignments, unmet, findings, blocked = validate_llm_recommendation(
-            result.assignments, result.requires_human_approval, scenario
+        # No repair here: every claim (units, travel times, citations, the approval flag) is
+        # judged by verification.verifier, and the operator sees what the model actually said.
+        return proposal.model_copy(
+            update={
+                "engine": self.name,
+                # The model's own status and findings are untrusted text; the verifier and the
+                # safety gates decide both.
+                "status": DecisionStatus.REQUIRES_HUMAN_APPROVAL,
+                "safety_findings": [],
+                "decision_trace": [
+                    *proposal.decision_trace,
+                    "Proposal returned unmodified for deterministic verification.",
+                ],
+                "evidence_ids": [item.id for item in evidence],
+                "evidence": evidence,
+                "prompt_version": self._prompt.version,
+                "model_version": self._model,
+            }
         )
-        assignments, citation_findings = self._map_assignment_evidence(assignments, evidence)
-        findings = findings + citation_findings
-        coverage = 1 - (
-            sum(item.quantity for item in unmet)
-            / max(1, len(assignments) + sum(item.quantity for item in unmet))
-        )
-        return DecisionResult(
-            scenario_id=scenario.scenario_id,
-            engine=self.name,
-            status=(
-                DecisionStatus.BLOCKED
-                if blocked
-                else DecisionStatus.REQUIRES_HUMAN_APPROVAL
-            ),
-            requires_human_approval=True,
-            assignments=assignments,
-            unmet_requirements=unmet,
-            safety_findings=findings,
-            coverage=round(max(0.0, min(1.0, coverage)), 2),
-            decision_trace=result.decision_trace
-            + ["Revalidated LLM assignments and safety state against the scenario."],
-            evidence_ids=[item.id for item in evidence],
-            evidence=evidence,
-            prompt_version=self._prompt.version,
-            model_version=self._model,
-        )
-
-    @staticmethod
-    def _map_assignment_evidence(
-        assignments: list[Assignment], evidence: list[Evidence]
-    ) -> tuple[list[Assignment], list[SafetyFinding]]:
-        """Keep only citations of retrieved evidence; flag assignments left without any.
-
-        Invalid citations are dropped, never replaced: attaching all retrieved evidence to an
-        uncited assignment would manufacture provenance the model never claimed.
-        """
-        available_ids = {item.id for item in evidence}
-        mapped: list[Assignment] = []
-        findings: list[SafetyFinding] = []
-        for assignment in assignments:
-            cited = [item for item in assignment.evidence_ids if item in available_ids]
-            if not cited:
-                findings.append(
-                    SafetyFinding(
-                        code="LLM_UNCITED_ASSIGNMENT",
-                        severity="high",
-                        incident_id=assignment.incident_id,
-                        message=(
-                            f"Assignment of {assignment.resource_id} cites no retrieved evidence; "
-                            "review it without supporting provenance."
-                        ),
-                    )
-                )
-            mapped.append(assignment.model_copy(update={"evidence_ids": cited}))
-        return mapped, findings
 
     def _blocked_result(
         self, scenario: Scenario, evidence: list[Evidence], reason: str

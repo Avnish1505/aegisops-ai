@@ -11,7 +11,10 @@ from aegisops.api.app import create_app
 from aegisops.application.scenario_service import generate_scenario
 from aegisops.core.config import Settings
 from aegisops.domain.models import Scenario
-from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
+from aegisops.planning.solver import SolverDecisionEngine, solve
+from aegisops.planning.travel import TravelTimeMatrix
+from aegisops.verification.models import TextDraft
+from aegisops.verification.verifier import verify
 from backend.db.models import Approval, AuditLog, Decision
 from backend.seed import DEMO_SEED, seed
 
@@ -181,18 +184,26 @@ def test_get_decision_returns_full_record_and_approvals(tmp_path: Path) -> None:
     ]
 
 
-def test_stored_decision_replays_to_the_same_plan(tmp_path: Path) -> None:
+def test_stored_decision_replays_and_reverifies_to_the_same_result(tmp_path: Path) -> None:
     client, _ = _migrated_client(tmp_path)
     decision_id = client.post("/api/v1/decisions", json={"seed": 11}).json()["decision_id"]
 
     record = client.get(f"/api/v1/decisions/{decision_id}").json()
-    stored_scenario = Scenario.model_validate(record["scenario"])
-    replayed = RuleBasedDecisionEngine().recommend(stored_scenario).model_dump(mode="json")
+    scenario = Scenario.model_validate(record["scenario"])
+    matrix = TravelTimeMatrix.model_validate(record["travel_times"])
+    replayed = solve(scenario, matrix)
+    plan = SolverDecisionEngine().result_from_solve(scenario, replayed)
+    report = verify(
+        plan,
+        scenario,
+        reference_plan=replayed,
+        travel_times=matrix,
+        text_drafts=[TextDraft.model_validate(draft) for draft in record["drafts"]],
+    )
 
-    assert stored_scenario.sha256() == record["scenario_sha256"]
-    assert replayed["assignments"] == record["assignments"]
-    assert replayed["unmet_requirements"] == record["unmet_requirements"]
-    assert replayed["safety_findings"] == record["safety_findings"]
+    assert scenario.sha256() == record["scenario_sha256"]
+    assert [a.model_dump(mode="json") for a in replayed.assignments] == record["assignments"]
+    assert report.model_dump(mode="json") == record["verification"]
 
 
 def test_get_unknown_decision_returns_404(tmp_path: Path) -> None:

@@ -127,6 +127,14 @@ class Decision(Base):
     evidence: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
     prompt_version: Mapped[str | None] = mapped_column(String(100))
     model_version: Mapped[str | None] = mapped_column(String(200))
+    verification: Mapped[dict[str, object] | None] = mapped_column(JSON)
+    drafts: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
+    constraints: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
+    travel_times: Mapped[dict[str, object] | None] = mapped_column(JSON)
+    objective: Mapped[float | None] = mapped_column()
+    reference_objective: Mapped[float | None] = mapped_column()
+    solve_status: Mapped[str | None] = mapped_column(String(32))
+    infeasibility: Mapped[dict[str, object] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     approvals: Mapped[list[Approval]] = relationship(

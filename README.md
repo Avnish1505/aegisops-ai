@@ -42,17 +42,17 @@ Settings are read from `AEGISOPS_`-prefixed environment variables (`aegisops/cor
 | Area | State | Evidence |
 | --- | --- | --- |
 | Synthetic scenarios | ✅ The same seed always gives the same scenario | `aegisops/application/scenario_service.py`; `tests/test_api.py::test_scenario_endpoint_is_reproducible_and_sets_request_id` |
-| Planning | ⚠️ Greedy nearest-qualified baseline only; no CP-SAT solver yet. Travel time is straight-line distance on a synthetic grid | `aegisops/infrastructure/rule_based_engine.py`; `aegisops/domain/policy.py` (`travel_minutes`) |
+| Planning | ✅ CP-SAT assignment minimising severity-weighted travel plus a penalty per unmet unit; typed reserve / exclude / priority constraints; infeasible constraints are named. The greedy engine is kept as a baseline. ⚠️ Travel time is straight-line distance on a synthetic grid | `aegisops/planning/solver.py`; `tests/test_solver.py` |
 | Safety gates | ✅ An unmet critical requirement blocks the plan | `tests/test_decision_engine.py::test_engine_blocks_critical_unmet_capability` |
-| LLM output re-check | ✅ Unknown, duplicate, unavailable, or wrong-type resources are rejected. Travel times are recomputed and replace the model's claim; a gap above max(1 min, 5%) blocks the plan. Citations of evidence that wasn't retrieved are dropped | `aegisops/domain/policy.py`; `tests/test_llm_decision_engine.py` |
+| Verification | ✅ Every engine's plan goes through 18 deterministic checks (units, availability, duplicates, capability, quantities, travel times recomputed within max(1 min, 5%), critical coverage, objective vs the CP-SAT optimum, constraints, citations and quotes, SITREP numbers, approval flag, instruction-like report text). Any critical failure blocks; the API returns the full report | `aegisops/verification/verifier.py`; `tests/test_verifier.py`; `tests/test_llm_decision_engine.py` |
 | LLM engine (NVIDIA NIM) | ❌ **Not evaluated against a live model.** Every test uses a mocked HTTP response. Without `NVIDIA_API_KEY` it returns `blocked` | `tests/test_llm_decision_engine.py`; `tests/test_api.py::test_decision_endpoint_selects_llm_rag_engine` |
 | Retrieval | ⚠️ **Keyword hashing, not semantic search.** Tokens are hashed into 256 buckets and ranked by inner product | `aegisops/infrastructure/knowledge_retrieval.py`; `tests/test_knowledge_retrieval.py` |
 | Human decision | ✅ Approve/reject with a reason, written to an audit log. Blocked decisions return 409 | `tests/test_persistence_integration.py::test_blocked_decision_cannot_be_approved_or_create_disposition` |
 | Proposer ≠ approver | ❌ Not enforced yet; an `operator` can approve a decision they created | `aegisops/api/app.py` (`create_disposition`) |
-| Decision record | ✅ Stores the input scenario and its SHA-256, the plan, findings, evidence, and prompt/model versions. `GET /api/v1/decisions/{id}` returns it, and a stored scenario replays to the same plan | `tests/test_persistence_integration.py::test_stored_decision_replays_to_the_same_plan` |
+| Decision record | ✅ Stores the input scenario and its SHA-256, the plan, verification report, SITREP, constraints, travel matrix, and prompt/model versions. A stored record replays and re-verifies to the same result | `tests/test_persistence_integration.py::test_stored_decision_replays_and_reverifies_to_the_same_result` |
 | Audit log integrity | ⚠️ Insert-only by convention; not hash-chained or tamper-evident | `backend/db/models.py` (`AuditLog`) |
 | Auth | ⚠️ **Development only.** The bearer token *is* the role name (`viewer`, `operator`, `approver`, `admin`) | `aegisops/api/security.py`; `tests/test_roles.py` |
-| Free-text intake / message drafting | ❌ Not implemented | None |
+| Free-text intake / message drafting | ❌ No LLM intake or drafting. ⚠️ A deterministic SITREP template is generated and its numbers verified | `aegisops/communication/sitrep.py` |
 | Multi-agent | ❌ None. `backend/agents/roles.py` holds data-only role descriptions | `backend/agents/roles.py` |
 | Database | ⚠️ SQLite is the only backend exercised by tests and the container | `tests/test_persistence_integration.py`; `Dockerfile` |
 | Evaluation | ✅ Golden-scenario regression suite for the rule-based engine | `sim/evaluation_harness.py`; `tests/test_evaluation_harness.py` |
