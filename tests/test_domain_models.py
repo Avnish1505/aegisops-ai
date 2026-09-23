@@ -3,6 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
+from aegisops.application.scenario_service import generate_scenario
 from aegisops.domain.models import (
     Assignment,
     DecisionResult,
@@ -207,3 +208,13 @@ def test_scenario_valid():
         resources=[resource],
     )
     assert scenario.scenario_id == "sc1"
+
+
+def test_scenario_sha256_is_stable_and_content_sensitive() -> None:
+    first = generate_scenario(seed=5)
+    same = Scenario.model_validate(first.model_dump(mode="json"))
+    changed = first.model_copy(update={"sim_start_min": first.sim_start_min + 1})
+
+    assert first.sha256() == same.sha256()
+    assert len(first.sha256()) == 64
+    assert first.sha256() != changed.sha256()

@@ -23,7 +23,7 @@ from aegisops.api.schemas import (
     ErrorResponse,
     ScenarioDecisionRequest,
 )
-from aegisops.api.security import require_operator
+from aegisops.api.security import require_operator, require_viewer
 from aegisops.application.roles import UserRole
 from aegisops.application.scenario_service import generate_scenario
 from aegisops.core.config import Settings
@@ -183,6 +183,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 requires_human_approval=result.requires_human_approval,
                 advisory_confidence=result.advisory_confidence,
                 decision_trace=result.decision_trace,
+                scenario=scenario.model_dump(mode="json"),
+                scenario_sha256=scenario.sha256(),
+                assignments=[item.model_dump(mode="json") for item in result.assignments],
+                unmet_requirements=[
+                    item.model_dump(mode="json") for item in result.unmet_requirements
+                ],
+                safety_findings=[item.model_dump(mode="json") for item in result.safety_findings],
+                evidence=[item.model_dump(mode="json") for item in result.evidence],
+                prompt_version=result.prompt_version,
+                model_version=result.model_version,
             )
             session.add(decision)
             session.flush()
@@ -198,6 +208,48 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             response = cast(dict[str, object], result.model_dump(mode="json"))
             response["decision_id"] = decision.id
         return response
+
+    @app.get("/api/v1/decisions/{decision_id}", tags=["decisions"])
+    async def get_decision(
+        request: Request,
+        decision_id: int,
+        role: Annotated[UserRole, Depends(require_viewer)],
+    ) -> dict[str, object]:
+        del role
+        with session_factory() as session:
+            decision = session.get(Decision, decision_id)
+            if decision is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Decision not found.",
+                )
+            return {
+                "decision_id": decision.id,
+                "scenario_id": decision.scenario_id,
+                "scenario_sha256": decision.scenario_sha256,
+                "scenario": decision.scenario,
+                "engine": decision.engine,
+                "status": decision.status,
+                "requires_human_approval": decision.requires_human_approval,
+                "advisory_confidence": decision.advisory_confidence,
+                "assignments": decision.assignments,
+                "unmet_requirements": decision.unmet_requirements,
+                "safety_findings": decision.safety_findings,
+                "evidence": decision.evidence,
+                "decision_trace": decision.decision_trace,
+                "prompt_version": decision.prompt_version,
+                "model_version": decision.model_version,
+                "created_at": decision.created_at.isoformat(),
+                "approvals": [
+                    {
+                        "disposition_id": approval.id,
+                        "action": "approve" if approval.approved else "reject",
+                        "actor": approval.user.username,
+                        "timestamp": approval.commented_at.isoformat(),
+                    }
+                    for approval in decision.approvals
+                ],
+            }
 
     @app.post("/api/v1/decisions/{decision_id}/disposition", tags=["decisions"])
     async def create_disposition(

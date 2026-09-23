@@ -122,12 +122,27 @@ class Decision(Base):
     requires_human_approval: Mapped[bool] = mapped_column(Boolean, default=True)
     advisory_confidence: Mapped[float] = mapped_column(nullable=False)
     decision_trace: Mapped[list[dict[str, object]]] = mapped_column(JSON)
+    # Full record needed to replay a decision. Nullable only for rows written before these
+    # columns existed; the API always populates them.
+    scenario: Mapped[dict[str, object] | None] = mapped_column(JSON)
+    scenario_sha256: Mapped[str | None] = mapped_column(String(64))
+    assignments: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
+    unmet_requirements: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
+    safety_findings: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
+    evidence: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
+    prompt_version: Mapped[str | None] = mapped_column(String(100))
+    model_version: Mapped[str | None] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    approvals: Mapped[list[Approval]] = relationship(
+        back_populates="decision", order_by="Approval.id"
+    )
 
     # Indexes
     __table_args__ = (
         Index("idx_decision_scenario_id", "scenario_id"),
         Index("idx_decision_status", "status"),
+        Index("idx_decision_scenario_sha256", "scenario_sha256"),
     )
 
 
@@ -141,7 +156,7 @@ class Approval(Base):
     commented_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships
-    decision: Mapped[Decision] = relationship()
+    decision: Mapped[Decision] = relationship(back_populates="approvals")
     user: Mapped[User] = relationship()
 
     # Indexes

@@ -8,6 +8,8 @@ The canonical interactive OpenAPI definition is served at `/docs` in development
 | GET | `/health/ready` | Application readiness probe |
 | GET | `/api/v1/scenarios?seed=42` | Generate a reproducible synthetic scenario |
 | POST | `/api/v1/decisions?engine=rule_based` | Produce a human-gated allocation recommendation |
+| GET | `/api/v1/decisions/{id}` | Read a stored decision (scenario, plan, findings, evidence, approvals) |
+| POST | `/api/v1/decisions/{id}/disposition` | Record an approve/reject with a reason |
 
 `POST /api/v1/decisions` accepts either a typed `scenario` or a `seed`; omitting both generates a
 non-repeatable synthetic scenario. `engine` is `rule_based` by default and may be `llm_rag` for
@@ -16,6 +18,13 @@ higher development role token (for example, `Authorization: Bearer operator`); t
 production authentication. Every response contains `requires_human_approval: true`. `status:
 blocked` means a critical requirement is unmet or the NIM adapter safely failed; it is not a
 dispatch state.
+
+`GET /api/v1/decisions/{id}` (any role, including `viewer`) returns the persisted record: the
+exact input `scenario`, its `scenario_sha256` (SHA-256 of canonical JSON), `assignments`,
+`unmet_requirements`, `safety_findings`, `evidence`, `decision_trace`, `prompt_version`,
+`model_version`, and every recorded disposition under `approvals`. Rows written before this
+migration have `null` for those fields. `tests/test_persistence_integration.py` checks that a stored
+scenario replays through the rule-based engine to the same plan.
 
 ```json
 {"seed": 42}

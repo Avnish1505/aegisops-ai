@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 
 from aegisops.api.app import create_app
 from aegisops.core.config import Settings
+from aegisops.domain.models import Scenario
+from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
 from backend.db.models import Approval, AuditLog, Decision
 
 
@@ -140,3 +142,58 @@ def test_migrations_target_database_from_settings(
     command.upgrade(Config(str(Path(__file__).parents[1] / "backend" / "alembic.ini")), "head")
 
     assert "decisions" in inspect(create_engine(f"sqlite:///{database_path}")).get_table_names()
+
+
+def test_get_decision_returns_full_record_and_approvals(tmp_path: Path) -> None:
+    client, _ = _migrated_client(tmp_path)
+    created = client.post("/api/v1/decisions", json={"scenario": _approved_scenario()}).json()
+    decision_id = created["decision_id"]
+    client.post(
+        f"/api/v1/decisions/{decision_id}/disposition",
+        json={"action": "approve", "reason": "Synthetic scenario reviewed."},
+    )
+
+    response = client.get(
+        f"/api/v1/decisions/{decision_id}", headers={"Authorization": "Bearer role:viewer"}
+    )
+
+    assert response.status_code == 200
+    record = response.json()
+    scenario = Scenario.model_validate(_approved_scenario())
+    assert record["scenario"] == scenario.model_dump(mode="json")
+    assert record["scenario_sha256"] == scenario.sha256()
+    for field in (
+        "engine",
+        "status",
+        "assignments",
+        "unmet_requirements",
+        "safety_findings",
+        "evidence",
+        "decision_trace",
+        "prompt_version",
+        "model_version",
+    ):
+        assert record[field] == created[field], field
+    assert [(a["action"], a["actor"]) for a in record["approvals"]] == [
+        ("approve", "development-operator")
+    ]
+
+
+def test_stored_decision_replays_to_the_same_plan(tmp_path: Path) -> None:
+    client, _ = _migrated_client(tmp_path)
+    decision_id = client.post("/api/v1/decisions", json={"seed": 11}).json()["decision_id"]
+
+    record = client.get(f"/api/v1/decisions/{decision_id}").json()
+    stored_scenario = Scenario.model_validate(record["scenario"])
+    replayed = RuleBasedDecisionEngine().recommend(stored_scenario).model_dump(mode="json")
+
+    assert stored_scenario.sha256() == record["scenario_sha256"]
+    assert replayed["assignments"] == record["assignments"]
+    assert replayed["unmet_requirements"] == record["unmet_requirements"]
+    assert replayed["safety_findings"] == record["safety_findings"]
+
+
+def test_get_unknown_decision_returns_404(tmp_path: Path) -> None:
+    client, _ = _migrated_client(tmp_path)
+
+    assert client.get("/api/v1/decisions/999").status_code == 404
