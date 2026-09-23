@@ -24,6 +24,8 @@ names are case-insensitive. Unprefixed names such as `SECRET_KEY` or `DATABASE_U
 | `AEGISOPS_LLM_BASE_URL` / `AEGISOPS_LLM_MODEL` | Endpoint and model | NVIDIA NIM, `nvidia/llama-3.1-nemotron-70b-instruct` | No |
 | `AEGISOPS_LLM_PRICE_IN_USD_PER_MTOK` / `..._OUT_...` | Prices for cost estimates (reference: OpenRouter Llama-3.3-70B list price, 2026-09-23) | 0.10 / 0.32 | No |
 | `AEGISOPS_LLM_CASSETTE_MODE` / `AEGISOPS_LLM_CASSETTE_DIR` | `record` or `replay` LLM HTTP exchanges | `off` | No |
+| `AEGISOPS_OTEL_ENDPOINT` (or `OTEL_EXPORTER_OTLP_ENDPOINT`) | OTLP/HTTP base URL for traces (compose: Phoenix at `http://phoenix:6006`) | unset (no export) | No |
+| `AEGISOPS_OTEL_SERVICE_NAME` | `service.name` on exported spans | `aegisops-api` | No |
 | `AEGISOPS_JWT_ROLE_CLAIM` | Claim holding the role (string or list) | `role` | No |
 | `AEGISOPS_RATE_LIMIT` | Rate limit for API endpoints (format: `X/minute` or `X/second`) | `100/minute` | No |
 | `AEGISOPS_DATABASE_URL` | Database connection string (SQLite by default) | `sqlite:///./aegisops.db` | No |

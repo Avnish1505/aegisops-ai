@@ -8,7 +8,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Literal, cast
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -58,6 +58,7 @@ from aegisops.intake.reader import Reader, to_incident
 from aegisops.llm.client import LLMClient, LLMError, LLMOutputError
 from aegisops.planning.osrm import OSRMProvider
 from aegisops.planning.travel import StraightLineProvider, TravelTimeMatrix, TravelTimeProvider
+from aegisops.telemetry import configure_tracing, current_traceparent, step_span
 from backend.db.models import Alert, Approval, Base, Decision, Exercise, User
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,7 @@ def create_app(
     active_settings = settings or Settings()
     check_secret_configuration(active_settings)
     configure_logging(active_settings.debug)
+    configure_tracing(active_settings.otel_endpoint, active_settings.otel_service_name)
     app = FastAPI(
         title=active_settings.application_name,
         version=active_settings.version,
@@ -98,7 +100,8 @@ def create_app(
         allow_origins=[str(origin).rstrip("/") for origin in active_settings.cors_origins],
         allow_credentials=False,
         allow_methods=["GET", "POST"],
-        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID", "traceparent"],
+        expose_headers=["traceparent"],
     )
 
     app.state.settings = active_settings
@@ -192,20 +195,27 @@ def create_app(
     @app.post("/api/v1/intake/read", tags=["intake"])
     async def read_report(
         request: Request,
+        response: Response,
         request_body: ReadReportRequest,
         principal: Annotated[Principal, Depends(require_operator)],
     ) -> dict[str, object]:
         """Free-text report -> grounded incident candidate (nothing is planned or stored)."""
         del principal
         require_llm()
-        try:
-            result = reader.read(request_body.report)
-        except (LLMError, LLMOutputError) as error:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Reader failed: {error}"
-            ) from error
+        with step_span("read") as span:
+            try:
+                result = reader.read(request_body.report)
+            except (LLMError, LLMOutputError) as error:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Reader failed: {error}"
+                ) from error
+            span.set_attribute("aegisops.fields_dropped", len(result.candidate.dropped))
+            traceparent = current_traceparent()
         incident = to_incident(result.candidate, "INC-preview")
+        if traceparent:
+            response.headers["traceparent"] = traceparent
         return {
+            "traceparent": traceparent,
             "candidate": result.candidate.model_dump(mode="json"),
             "incident_preview": incident.model_dump(mode="json") if incident else None,
             "llm": {
@@ -320,15 +330,23 @@ def create_app(
         request_body: ScenarioDecisionRequest,
         principal: Annotated[Principal, Depends(require_operator)],
         engine: Literal["solver", "rule_based", "llm_rag"] = "solver",
+        traceparent: Annotated[str | None, Header()] = None,
     ) -> dict[str, object]:
+        """Plan and verify. A ``traceparent`` header (e.g. from ``/intake/read``) puts this
+        decision in the same trace as the report that led to it."""
         scenario: Scenario = (
             request_body.scenario or generate_scenario(seed=request_body.seed)
         )
-        outcome = decision_service.decide(scenario, engine, request_body.constraints)
-
-        with session_factory.begin() as session:
-            decision = record_decision(session, scenario, outcome, proposer=principal.sub)
-            return serialize_decision(decision)
+        with step_span("plan", traceparent=traceparent, engine=engine) as span:
+            outcome = decision_service.decide(scenario, engine, request_body.constraints)
+            with session_factory.begin() as session:
+                decision = record_decision(
+                    session, scenario, outcome, proposer=principal.sub,
+                    trace_parent=current_traceparent(),
+                )
+                span.set_attributes({"aegisops.decision_id": decision.id,
+                                     "aegisops.status": decision.status})
+                return serialize_decision(decision)
 
     @app.get("/api/v1/decisions/{decision_id}", tags=["decisions"])
     async def get_decision(
@@ -373,9 +391,11 @@ def create_app(
                     "decision_trace": decision.decision_trace,
                 }
             )
-            drafts = reporter.draft(
-                plan, scenario, TravelTimeMatrix.model_validate(decision.travel_times)
-            )
+            with step_span("communicate", traceparent=decision.trace_parent,
+                           decision_id=decision.id):
+                drafts = reporter.draft(
+                    plan, scenario, TravelTimeMatrix.model_validate(decision.travel_times)
+                )
             append_event(
                 session,
                 actor=principal.sub,
@@ -417,53 +437,55 @@ def create_app(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Decision not found.",
                 )
-            if approving and decision.status == "blocked":
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Blocked decisions cannot be approved.",
+            with step_span("decide", traceparent=decision.trace_parent,
+                           decision_id=decision.id, action=request_body.action):
+                if approving and decision.status == "blocked":
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Blocked decisions cannot be approved.",
+                    )
+                if approving and decision.proposer_sub == principal.sub:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="proposer cannot approve",
+                    )
+                actor_name = principal.sub
+                actor = session.query(User).filter_by(username=actor_name).one_or_none()
+                if actor is None:
+                    actor = User(
+                        username=actor_name,
+                        email=f"{sha256_hex(actor_name)[:32]}@identity.invalid",
+                        hashed_password="external-identity",
+                    )
+                    session.add(actor)
+                    session.flush()
+                approval = Approval(
+                    decision_id=decision.id,
+                    user_id=actor.id,
+                    approved=approving,
                 )
-            if approving and decision.proposer_sub == principal.sub:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="proposer cannot approve",
-                )
-            actor_name = principal.sub
-            actor = session.query(User).filter_by(username=actor_name).one_or_none()
-            if actor is None:
-                actor = User(
-                    username=actor_name,
-                    email=f"{sha256_hex(actor_name)[:32]}@identity.invalid",
-                    hashed_password="external-identity",
-                )
-                session.add(actor)
+                session.add(approval)
                 session.flush()
-            approval = Approval(
-                decision_id=decision.id,
-                user_id=actor.id,
-                approved=approving,
-            )
-            session.add(approval)
-            session.flush()
-            event = append_event(
-                session,
-                actor=actor_name,
-                type="disposition_recorded",
-                payload={
+                event = append_event(
+                    session,
+                    actor=actor_name,
+                    type="disposition_recorded",
+                    payload={
+                        "decision_id": decision.id,
+                        "approval_id": approval.id,
+                        "action": request_body.action,
+                        "reason": request_body.reason,
+                        "record": record_ref(
+                            "approvals", approval.id, approval_record_sha256(approval)
+                        ),
+                    },
+                )
+                return {
                     "decision_id": decision.id,
-                    "approval_id": approval.id,
+                    "disposition_id": approval.id,
                     "action": request_body.action,
-                    "reason": request_body.reason,
-                    "record": record_ref(
-                        "approvals", approval.id, approval_record_sha256(approval)
-                    ),
-                },
-            )
-            return {
-                "decision_id": decision.id,
-                "disposition_id": approval.id,
-                "action": request_body.action,
-                "timestamp": event.ts,
-            }
+                    "timestamp": event.ts,
+                }
 
     if active_settings.environment == "development":
 

@@ -132,6 +132,8 @@ class Decision(Base):
     model_version: Mapped[str | None] = mapped_column(String(200))
     # Token subject of whoever requested the plan; that subject may never approve it.
     proposer_sub: Mapped[str | None] = mapped_column(String(255))
+    # W3C traceparent of the plan step, so later steps (decide, communicate) join its trace.
+    trace_parent: Mapped[str | None] = mapped_column(String(55))
     verification: Mapped[dict[str, object] | None] = mapped_column(JSON)
     drafts: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
     constraints: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)

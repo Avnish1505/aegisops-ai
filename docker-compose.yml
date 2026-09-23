@@ -6,6 +6,7 @@
 # Then `docker compose up --build`:
 #   console  http://localhost:5173   (Leaflet map on OpenStreetMap tiles)
 #   API      http://localhost:8000
+#   traces   http://localhost:6006   (Arize Phoenix; one trace per decision)
 # On start the API migrates PostgreSQL/PostGIS, imports Lucknow facilities from data/osm, stations
 # units, seeds the exercise and plans it once on OSRM road times. The worker polls NDMA SACHET,
 # USGS and GDACS. Without the prepared data the API falls back to a synthetic seed.
@@ -34,6 +35,13 @@ services:
     ports:
       - "5000:5000"
 
+  phoenix:
+    # Self-hosted Arize Phoenix: OTLP/HTTP collector at :6006/v1/traces and the trace UI.
+    # Traces live in the container (not persisted); this is a research console, not ops.
+    image: arizephoenix/phoenix:version-20.16.0
+    ports:
+      - "6006:6006"
+
   api:
     build: .
     ports:
@@ -46,6 +54,9 @@ services:
       - AEGISOPS_RATE_LIMIT=100/minute
       - AEGISOPS_DATABASE_URL=postgresql+psycopg://aegisops:aegisops@db:5432/aegisops
       - AEGISOPS_OSRM_URL=http://osrm:5000
+      - AEGISOPS_OTEL_ENDPOINT=http://phoenix:6006
+      # Optional: read from ./.env (gitignored). Without it the LLM endpoints return 503.
+      - AEGISOPS_LLM_API_KEY=${AEGISOPS_LLM_API_KEY:-}
       - OSM_EXTRACT=/app/data/osm/lucknow.osm.pbf
     volumes:
       - ./data/osm:/app/data/osm:ro
@@ -54,6 +65,8 @@ services:
       db:
         condition: service_healthy
       osrm:
+        condition: service_started
+      phoenix:
         condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health/ready"]

@@ -67,6 +67,14 @@ class Settings(BaseSettings):
     llm_cassette_mode: Literal["off", "record", "replay"] = "off"
     llm_cassette_dir: Path | None = None
 
+    # OpenTelemetry: OTLP/HTTP base URL (e.g. Arize Phoenix at http://phoenix:6006). Unset means
+    # no exporter, and the OpenTelemetry API stays a no-op.
+    otel_endpoint: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("AEGISOPS_OTEL_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT"),
+    )
+    otel_service_name: str = "aegisops-api"
+
     # Hazard-feed ingestion (aegisops/ingestion/worker.py).
     ingest_sachet_rss_url: str = "https://sachet.ndma.gov.in/cap_public_website/rss/rss_india.xml"
     ingest_usgs_url: str = (
