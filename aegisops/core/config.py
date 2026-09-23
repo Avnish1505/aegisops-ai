@@ -49,6 +49,23 @@ class Settings(BaseSettings):
     osrm_url: str | None = None
     osrm_profile: str = "driving"
 
+    # Hazard-feed ingestion (aegisops/ingestion/worker.py).
+    ingest_sachet_rss_url: str = "https://sachet.ndma.gov.in/cap_public_website/rss/rss_india.xml"
+    ingest_usgs_url: str = (
+        "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson"
+    )
+    ingest_gdacs_url: str = (
+        "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH?eventlist=EQ;TC;FL;VO;DR;WF"
+    )
+    ingest_sachet_interval_min: int = 5
+    ingest_usgs_interval_min: int = 5
+    ingest_gdacs_interval_min: int = 15
+    ingest_max_cap_per_poll: int = 100
+    ingest_timeout_s: float = 20.0
+    ingest_user_agent: str = (
+        "AegisOps research platform (non-operational; github.com/Avnish1505/aegisops-ai)"
+    )
+
     model_config = SettingsConfigDict(
         env_prefix="AEGISOPS_",
         case_sensitive=False,

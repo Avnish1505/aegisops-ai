@@ -21,3 +21,8 @@ python_version = "3.11"
 strict = true
 warn_unused_ignores = true
 exclude = ["venv"]
+
+[[tool.mypy.overrides]]
+# APScheduler 3.x ships no type information.
+module = ["apscheduler.*"]
+ignore_missing_imports = true

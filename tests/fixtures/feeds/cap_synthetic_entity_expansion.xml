@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<!-- SYNTHETIC hostile input: an XML entity-expansion ("billion laughs") payload. -->
+<!DOCTYPE alert [
+  <!ENTITY lol "lol">
+  <!ENTITY lol2 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">
+  <!ENTITY lol3 "&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;">
+]>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2"><identifier>&lol3;</identifier></alert>

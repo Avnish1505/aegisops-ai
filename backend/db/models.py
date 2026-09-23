@@ -258,3 +258,29 @@ class Exercise(Base):
     scenario: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     scenario_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Alert(Base):
+    """A hazard alert ingested from a public feed, stored with the payload exactly as fetched."""
+
+    __tablename__ = "alerts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    identifier: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_ref: Mapped[str | None] = mapped_column(String(255))
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    event: Mapped[str | None] = mapped_column(String(255))
+    severity: Mapped[str | None] = mapped_column(String(32))
+    headline: Mapped[str | None] = mapped_column(Text)
+    area_desc: Mapped[str | None] = mapped_column(Text)
+    location: Mapped[tuple[float, float] | None] = mapped_column(GeoPoint())
+    raw_payload: Mapped[str] = mapped_column(Text, nullable=False)
+    parsed: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("source", "identifier", name="uq_alert_source_identifier"),
+        Index("idx_alert_source_ref", "source", "source_ref"),
+        Index("idx_alert_sent_at", "sent_at"),
+    )

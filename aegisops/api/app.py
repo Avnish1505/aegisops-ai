@@ -8,7 +8,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Literal, cast
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -51,7 +51,7 @@ from aegisops.infrastructure.retrieval_engine import RetrievalEngine
 from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
 from aegisops.planning.osrm import OSRMProvider
 from aegisops.planning.travel import StraightLineProvider, TravelTimeProvider
-from backend.db.models import Approval, Base, Decision, Exercise, User
+from backend.db.models import Alert, Approval, Base, Decision, Exercise, User
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +187,37 @@ def create_app(
     @limiter.limit(active_settings.rate_limit)
     async def get_scenario(request: Request, seed: int | None = None) -> dict[str, object]:
         return cast(dict[str, object], generate_scenario(seed=seed).model_dump(mode="json"))
+
+    @app.get("/api/v1/alerts", tags=["alerts"])
+    @limiter.limit(active_settings.rate_limit)
+    async def list_alerts(
+        request: Request,
+        source: Literal["sachet", "usgs", "gdacs"] | None = None,
+        limit: int = Query(default=25, ge=1, le=200),
+    ) -> list[dict[str, object]]:
+        """Latest ingested alerts (summaries; the stored raw payload is not returned)."""
+        query = select(Alert).order_by(Alert.sent_at.desc().nulls_last(), Alert.id.desc())
+        if source is not None:
+            query = query.where(Alert.source == source)
+        with session_factory() as session:
+            return [
+                {
+                    "source": alert.source,
+                    "identifier": alert.identifier,
+                    "sent_at": alert.sent_at.isoformat() if alert.sent_at else None,
+                    "fetched_at": alert.fetched_at.isoformat(),
+                    "event": alert.event,
+                    "severity": alert.severity,
+                    "headline": alert.headline,
+                    "area_desc": alert.area_desc,
+                    "location": (
+                        {"lat": alert.location[0], "lon": alert.location[1]}
+                        if alert.location
+                        else None
+                    ),
+                }
+                for alert in session.scalars(query.limit(limit))
+            ]
 
     @app.get("/api/v1/exercises", tags=["scenarios"])
     @limiter.limit(active_settings.rate_limit)

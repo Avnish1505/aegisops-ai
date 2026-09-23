@@ -18,6 +18,8 @@ names are case-insensitive. Unprefixed names such as `SECRET_KEY` or `DATABASE_U
 | `AEGISOPS_JWT_JWKS_URL` | OIDC JWKS URL; required for `RS256` | — | With RS256 |
 | `AEGISOPS_JWT_ISSUER` / `AEGISOPS_JWT_AUDIENCE` | Required `iss` / `aud` claims when set | — | No |
 | `AEGISOPS_OSRM_URL` | OSRM base URL for road travel times (e.g. `http://osrm:5000`); unset uses straight-line estimates | — | No |
+| `AEGISOPS_INGEST_SACHET_RSS_URL` / `AEGISOPS_INGEST_USGS_URL` / `AEGISOPS_INGEST_GDACS_URL` | Feed URLs polled by `python -m aegisops.ingestion.worker` | the public feeds | No |
+| `AEGISOPS_INGEST_*_INTERVAL_MIN` | Poll intervals in minutes (SACHET, USGS, GDACS) | 5, 5, 15 | No |
 | `AEGISOPS_JWT_ROLE_CLAIM` | Claim holding the role (string or list) | `role` | No |
 | `AEGISOPS_RATE_LIMIT` | Rate limit for API endpoints (format: `X/minute` or `X/second`) | `100/minute` | No |
 | `AEGISOPS_DATABASE_URL` | Database connection string (SQLite by default) | `sqlite:///./aegisops.db` | No |

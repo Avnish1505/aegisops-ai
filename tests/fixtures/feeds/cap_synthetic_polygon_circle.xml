@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC test fixture (not a real alert): exercises CAP 1.2 area elements that the real
+     SACHET alerts sampled on 2026-09-23 did not carry inline (polygon, circle, several geocodes). -->
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <identifier>TEST-LKO-2026-0001</identifier>
+  <sender>test-sender@example.invalid</sender>
+  <sent>2026-09-23T06:00:00+05:30</sent>
+  <status>Exercise</status>
+  <msgType>Alert</msgType>
+  <scope>Public</scope>
+  <note>Synthetic exercise alert for parser tests.</note>
+  <info>
+    <language>en-IN</language>
+    <category>Met</category>
+    <category>Safety</category>
+    <event>Flood</event>
+    <responseType>Evacuate</responseType>
+    <urgency>Immediate</urgency>
+    <severity>Extreme</severity>
+    <certainty>Observed</certainty>
+    <expires>2026-09-23T18:00:00+05:30</expires>
+    <senderName>Exercise control</senderName>
+    <headline>Gomti rising near Lucknow riverside colonies</headline>
+    <description>Exercise text.</description>
+    <instruction>Move to higher floors.</instruction>
+    <parameter><valueName>Rainfall_mm</valueName><value>210</value></parameter>
+    <area>
+      <areaDesc>Gomti Nagar riverside, Lucknow</areaDesc>
+      <polygon>26.85,80.98 26.87,80.98 26.87,81.01 26.85,81.01 26.85,80.98</polygon>
+      <circle>26.8505,80.9470 1.5</circle>
+      <geocode><valueName>LGD District Code</valueName><value>999</value></geocode>
+      <geocode><valueName>Test</valueName><value>A</value></geocode>
+    </area>
+  </info>
+</alert>

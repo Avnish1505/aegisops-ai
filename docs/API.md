@@ -8,6 +8,7 @@ The canonical interactive OpenAPI definition is served at `/docs` in development
 | GET | `/health/ready` | Application readiness probe |
 | GET | `/api/v1/scenarios?seed=42` | Generate a reproducible synthetic scenario |
 | GET | `/api/v1/exercises` | List saved exercises (e.g. the Lucknow monsoon exercise) |
+| GET | `/api/v1/alerts?source=&limit=` | Latest ingested hazard alerts (SACHET, USGS, GDACS), without raw payloads |
 | GET | `/api/v1/exercises/{id}` | A saved exercise's scenario |
 | POST | `/api/v1/decisions?engine=solver` | Produce a verified, human-gated plan (`solver` default; `rule_based`, `llm_rag`) |
 | GET | `/api/v1/decisions/{id}` | Read a stored decision (scenario, plan, findings, evidence, approvals) |
