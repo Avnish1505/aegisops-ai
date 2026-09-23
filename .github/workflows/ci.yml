@@ -23,6 +23,7 @@ jobs:
       - run: ruff check .
       - run: mypy --python-version 3.11 aegisops
       - run: pytest
+      - run: python scripts/fault_report.py --check
 
   frontend:
     runs-on: ubuntu-latest
