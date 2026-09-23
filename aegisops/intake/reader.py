@@ -4,7 +4,7 @@ The model fills ``ReaderOutput`` under constrained decoding, quoting the report 
 Then deterministic code decides what survives:
 
 - a field is kept only if its quote is a substring of the report (after Unicode and whitespace
-  normalisation) - otherwise it is dropped and counted;
+  normalisation) of at most 100 characters - otherwise it is dropped and counted;
 - counts and quantities must also be stated in their quote (digits in any script, or a number
   word) - otherwise dropped;
 - a location value must appear inside its own quote;

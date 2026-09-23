@@ -12,5 +12,6 @@ dist/
 .DS_Store
 *.db
 .hypothesis/
-data/
+/data/
 .sf/
+evals/data/.cache/

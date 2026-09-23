@@ -25,7 +25,8 @@ Kind = Literal["place", "landmark", "road"]
 KIND_RANK: dict[str, int] = {"place": 0, "landmark": 1, "road": 2}
 NAME_KEYS = ("name", "name:en", "name:hi", "alt_name", "old_name", "official_name", "short_name")
 DEFAULT_GAZETTEER = Path(__file__).with_name("lucknow_gazetteer.json")
-MIN_ALIAS_LENGTH = 4
+MIN_ALIAS_LENGTH = 4  # Latin script; Devanagari names are shorter in code points ("चौक" is 3)
+MIN_ALIAS_LENGTH_OTHER_SCRIPTS = 3
 FUZZY_CUTOFF = 88.0
 
 # Spellings reporters use that OSM does not carry. Keys are OSM place names in the gazetteer.
@@ -73,6 +74,10 @@ def normalise(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _min_length(text: str) -> int:
+    return MIN_ALIAS_LENGTH if text.isascii() else MIN_ALIAS_LENGTH_OTHER_SCRIPTS
+
+
 class Gazetteer:
     def __init__(self, entries: list[GazetteerEntry]) -> None:
         self.entries = entries
@@ -80,7 +85,7 @@ class Gazetteer:
         for number, entry in enumerate(entries):
             for alias in {entry.name, *entry.aliases, *entry.curated_aliases}:
                 key = normalise(alias)
-                if len(key) >= MIN_ALIAS_LENGTH:
+                if len(key) >= _min_length(key):
                     self._index.setdefault(key, []).append(number)
         self._aliases = list(self._index)
         self._longest = max((len(a.split()) for a in self._aliases), default=1)
@@ -147,7 +152,7 @@ class Gazetteer:
             return self._result(self._best(self._index[span]), "exact", 100.0, span)
         best: tuple[float, str, str] | None = None
         for span, _ in spans:
-            if len(span) < MIN_ALIAS_LENGTH:
+            if len(span) < _min_length(span):
                 continue
             match = process.extractOne(
                 span, self._aliases, scorer=fuzz.ratio, score_cutoff=FUZZY_CUTOFF

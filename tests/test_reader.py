@@ -130,7 +130,8 @@ def test_candidate_without_location_cannot_become_an_incident() -> None:
     [
         ("Charbagh  Station", "near charbagh station now", True),
         ("Charbagh", "Aminabad mein pani", False),
-        ("a", "a b c", False),
+        ("", "a b c", False),
+        ("3", "3 log fanse", True),
         ("“chhat par”", "log chhat par hain", True),
     ],
 )
@@ -228,3 +229,15 @@ def test_read_endpoint_is_503_without_a_model() -> None:
     )
 
     assert response.status_code == 503
+
+
+def test_short_devanagari_alias_is_indexed() -> None:
+    result = GAZETTEER.geocode("चौक")
+
+    assert result is not None and result.name == "Chowk"
+
+
+def test_quoting_the_whole_report_does_not_ground_a_field() -> None:
+    long_report = "Charbagh mein pani bhar gaya hai " * 5 + "aur 35 log fanse hain"
+
+    assert not quote_in_report(long_report, long_report)

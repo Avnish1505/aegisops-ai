@@ -20,6 +20,9 @@ NUMBER_WORDS: dict[str, int] = {
     "पचास": 50, "सौ": 100,
 }
 _DIGITS = re.compile(r"\d+")
+# A quote must point at the words that state a value. Quoting the whole report would make the
+# substring check meaningless, so longer quotes do not count as grounding.
+MAX_QUOTE_CHARS = 100
 
 
 def normalise(text: str) -> str:
@@ -29,7 +32,7 @@ def normalise(text: str) -> str:
 
 def quote_in_report(quote: str, report: str) -> bool:
     needle = normalise(quote).strip(" \"'“”‘’.,;:")
-    return len(needle) >= 2 and needle in normalise(report)
+    return 1 <= len(needle) <= MAX_QUOTE_CHARS and needle in normalise(report)
 
 
 def numbers_in(text: str) -> set[int]:
