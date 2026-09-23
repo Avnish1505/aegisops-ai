@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { fetchDecision, fetchScenario } from './api'
-import type { Assignment, Decision, Scenario, SelectedEntity } from './types'
+import { useEffect, useState } from 'react'
+import { fetchDecision, fetchExercise, fetchExercises, fetchScenario } from './api'
+import type { Assignment, Decision, ExerciseSummary, Scenario, SelectedEntity } from './types'
 import { AppShell } from './components/AppShell'
 import { ScenarioControl } from './components/ScenarioControl'
 import { ErrorBanner } from './components/ErrorBanner'
@@ -23,6 +23,31 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isRecommending, setIsRecommending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [exercises, setExercises] = useState<ExerciseSummary[]>([])
+
+  useEffect(() => {
+    // Saved exercises are optional: a stack without them simply shows none.
+    fetchExercises().then(setExercises).catch(() => setExercises([]))
+  }, [])
+
+  const showScenario = (next: Scenario) => {
+    setScenario(next)
+    setDecision(null)
+    setSelected(null)
+    setActiveAssignment(null)
+  }
+
+  const loadExercise = async (exerciseId: string) => {
+    setIsGenerating(true)
+    setError(null)
+    try {
+      showScenario(await fetchExercise(exerciseId))
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not load the exercise.')
+    } finally {
+      setIsGenerating(false)
+    }
+  }
 
   const generateScenario = async () => {
     const normalized = seedText.trim()
@@ -34,11 +59,7 @@ function App() {
     setIsGenerating(true)
     setError(null)
     try {
-      const next = await fetchScenario(seed)
-      setScenario(next)
-      setDecision(null)
-      setSelected(null)
-      setActiveAssignment(null)
+      showScenario(await fetchScenario(seed))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not generate a scenario.')
     } finally {
@@ -77,6 +98,8 @@ function App() {
         onSeedTextChange={setSeedText}
         onGenerate={() => void generateScenario()}
         isGenerating={isGenerating}
+        exercises={exercises}
+        onLoadExercise={(exerciseId) => void loadExercise(exerciseId)}
       />
 
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}

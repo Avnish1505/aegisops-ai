@@ -1,4 +1,4 @@
-import type { Decision, DispositionAction, DispositionResult, Scenario } from './types'
+import type { Decision, DispositionAction, DispositionResult, ExerciseSummary, Scenario } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
@@ -67,6 +67,14 @@ async function authHeaders(): Promise<Record<string, string>> {
 export function fetchScenario(seed?: number): Promise<Scenario> {
   const query = seed === undefined ? '' : `?seed=${encodeURIComponent(seed)}`
   return request<Scenario>(`/api/v1/scenarios${query}`)
+}
+
+export function fetchExercises(): Promise<ExerciseSummary[]> {
+  return request<ExerciseSummary[]>('/api/v1/exercises')
+}
+
+export function fetchExercise(exerciseId: string): Promise<Scenario> {
+  return request<Scenario>(`/api/v1/exercises/${encodeURIComponent(exerciseId)}`)
 }
 
 export async function fetchDecision(scenario: Scenario): Promise<Decision> {

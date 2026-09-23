@@ -53,6 +53,12 @@ function IncidentDetail({ item, decision }: { item: Incident; decision: Decision
   return (
     <div className="space-y-4">
       <EntityHeader id={item.id} title={humanize(item.type)} badge={<SeverityBadge severity={item.severity} />} />
+      {item.report && (
+        <blockquote className="border-l-2 border-ink-300 pl-3 text-xs leading-5 text-ink-700">
+          <span className="metric-label block">Field report (untrusted text)</span>
+          {item.report}
+        </blockquote>
+      )}
       <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-ink-200 pt-3 text-xs">
         <Metric label="Lat, lon (WGS84)" value={<span className="font-mono">{formatLocation(item.location)}</span>} />
         <Metric label="Reported" value={`T+${item.reported_at_min} min`} />

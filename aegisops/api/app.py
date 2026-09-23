@@ -13,7 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from starlette.status import HTTP_422_UNPROCESSABLE_CONTENT, HTTP_500_INTERNAL_SERVER_ERROR
@@ -51,7 +51,7 @@ from aegisops.infrastructure.retrieval_engine import RetrievalEngine
 from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
 from aegisops.planning.osrm import OSRMProvider
 from aegisops.planning.travel import StraightLineProvider, TravelTimeProvider
-from backend.db.models import Approval, Base, Decision, User
+from backend.db.models import Approval, Base, Decision, Exercise, User
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +187,33 @@ def create_app(
     @limiter.limit(active_settings.rate_limit)
     async def get_scenario(request: Request, seed: int | None = None) -> dict[str, object]:
         return cast(dict[str, object], generate_scenario(seed=seed).model_dump(mode="json"))
+
+    @app.get("/api/v1/exercises", tags=["scenarios"])
+    @limiter.limit(active_settings.rate_limit)
+    async def list_exercises(request: Request) -> list[dict[str, object]]:
+        with session_factory() as session:
+            return [
+                {
+                    "id": exercise.id,
+                    "name": exercise.name,
+                    "description": exercise.description,
+                    "incidents": len(cast(list[object], exercise.scenario["incidents"])),
+                    "resources": len(cast(list[object], exercise.scenario["resources"])),
+                    "scenario_sha256": exercise.scenario_sha256,
+                }
+                for exercise in session.scalars(select(Exercise).order_by(Exercise.id))
+            ]
+
+    @app.get("/api/v1/exercises/{exercise_id}", tags=["scenarios"])
+    @limiter.limit(active_settings.rate_limit)
+    async def get_exercise(request: Request, exercise_id: str) -> dict[str, object]:
+        with session_factory() as session:
+            exercise = session.get(Exercise, exercise_id)
+            if exercise is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Exercise not found."
+                )
+            return exercise.scenario
 
     @app.post("/api/v1/decisions", tags=["decisions"])
     async def create_decision(

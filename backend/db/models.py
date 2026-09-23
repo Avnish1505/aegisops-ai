@@ -245,3 +245,16 @@ class Unit(Base):
     speed_kmh: Mapped[float] = mapped_column(nullable=False)
 
     facility: Mapped[Facility] = relationship()
+
+
+class Exercise(Base):
+    """A saved scenario (e.g. the Lucknow monsoon exercise) the console can load."""
+
+    __tablename__ = "exercises"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    scenario: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    scenario_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

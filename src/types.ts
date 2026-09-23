@@ -34,6 +34,15 @@ export interface Scenario {
   sim_start_min: number
 }
 
+/** A saved scenario from GET /api/v1/exercises. */
+export interface ExerciseSummary {
+  id: string
+  name: string
+  description: string
+  incidents: number
+  resources: number
+}
+
 export interface Citation {
   evidence_id: string
   quote: string
