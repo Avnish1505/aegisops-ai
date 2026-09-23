@@ -34,6 +34,11 @@ def travel_minutes(source: tuple[float, float], target: tuple[float, float], spe
     return hypot(source[0] - target[0], source[1] - target[1]) / speed
 
 
+def travel_time_tolerance(verified_minutes: float) -> float:
+    """Largest accepted gap between a claimed and a recomputed travel time: 1 min or 5%."""
+    return max(1.0, 0.05 * verified_minutes)
+
+
 def evaluate_safety_gates(
     unmet: list[UnmetRequirement], scenario: Scenario
 ) -> tuple[list[SafetyFinding], bool]:
@@ -157,7 +162,25 @@ def validate_llm_recommendation(
                 )
             )
             continue
-        accepted.append(assignment)
+        verified_minutes = travel_minutes(resource.location, incident.location, resource.eta_speed)
+        if abs(assignment.travel_minutes - verified_minutes) > travel_time_tolerance(
+            verified_minutes
+        ):
+            findings.append(
+                SafetyFinding(
+                    code="LLM_TRAVEL_TIME_MISMATCH",
+                    severity="critical",
+                    incident_id=incident.id,
+                    message=(
+                        f"LLM claimed {assignment.travel_minutes} min for {resource.id}; "
+                        f"recomputed {verified_minutes:.2f} min."
+                    ),
+                )
+            )
+        # The operator only ever sees the recomputed figure, never the model's claim.
+        accepted.append(
+            assignment.model_copy(update={"travel_minutes": round(verified_minutes, 2)})
+        )
         fulfilled[requirement_key] = fulfilled.get(requirement_key, 0) + 1
 
     unmet = [

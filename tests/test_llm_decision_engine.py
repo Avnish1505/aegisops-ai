@@ -4,7 +4,8 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from aegisops.domain.models import Evidence, Scenario
+from aegisops.domain.models import Assignment, Evidence, Scenario
+from aegisops.domain.policy import travel_time_tolerance, validate_llm_recommendation
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 from aegisops.infrastructure.prompt_templates import DEFAULT_PROMPT_VERSION, get_prompt_template
 
@@ -195,9 +196,8 @@ def test_llm_decision_engine_rejects_unknown_prompt_version() -> None:
         LLMDecisionEngine(StubRetrievalEngine(), prompt_version="nim-experiment-a")
 
 
-def test_llm_decision_engine_attaches_retrieval_provenance_to_assignments() -> None:
-    retrieval_engine = StructuredStubRetrievalEngine()
-    scenario = Scenario.model_validate(
+def _provenance_scenario() -> Scenario:
+    return Scenario.model_validate(
         {
             "scenario_id": "SCEN-provenance",
             "incidents": [
@@ -216,7 +216,10 @@ def test_llm_decision_engine_attaches_retrieval_provenance_to_assignments() -> N
             ],
         }
     )
-    raw_result = {
+
+
+def _provenance_result(evidence_ids: list[str]) -> dict[str, object]:
+    return {
         "scenario_id": "SCEN-provenance",
         "engine": "nvidia_nim_v1",
         "status": "requires_human_approval",
@@ -226,16 +229,18 @@ def test_llm_decision_engine_attaches_retrieval_provenance_to_assignments() -> N
                 "resource_id": "RES-1",
                 "resource_type": "ambulance",
                 "travel_minutes": 0,
-                "evidence_ids": ["unknown-evidence"],
+                "evidence_ids": evidence_ids,
             }
         ],
         "unmet_requirements": [],
         "safety_findings": [],
         "advisory_confidence": 1.0,
         "decision_trace": ["Used approval guidance."],
-        "evidence_ids": ["unknown-evidence"],
+        "evidence_ids": evidence_ids,
     }
 
+
+def _structured_engine(raw_result: dict[str, object]) -> LLMDecisionEngine:
     def handler(request: httpx.Request) -> httpx.Response:
         prompt = json.loads(request.content)["messages"][1]["content"]
         assert json.loads(prompt)["evidence"][0]["id"] == "knowledge-human-approval"
@@ -243,15 +248,40 @@ def test_llm_decision_engine_attaches_retrieval_provenance_to_assignments() -> N
             200, json={"choices": [{"message": {"content": json.dumps(raw_result)}}]}
         )
 
-    result = LLMDecisionEngine(
-        retrieval_engine,
+    return LLMDecisionEngine(
+        StructuredStubRetrievalEngine(),
         api_key="test-key",
         client=httpx.Client(transport=httpx.MockTransport(handler)),
-    ).recommend(scenario)
+    )
+
+
+def test_llm_decision_engine_keeps_valid_assignment_citations() -> None:
+    result = _structured_engine(
+        _provenance_result(["knowledge-human-approval", "unknown-evidence"])
+    ).recommend(_provenance_scenario())
 
     assert result.evidence_ids == ["knowledge-human-approval"]
     assert result.evidence[0].source == "human-approval.md"
     assert result.assignments[0].evidence_ids == ["knowledge-human-approval"]
+    assert "LLM_UNCITED_ASSIGNMENT" not in {finding.code for finding in result.safety_findings}
+
+
+def test_llm_decision_engine_drops_invalid_citations_without_substituting_evidence() -> None:
+    result = _structured_engine(_provenance_result(["unknown-evidence"])).recommend(
+        _provenance_scenario()
+    )
+
+    assert result.assignments[0].evidence_ids == []
+    uncited = [f for f in result.safety_findings if f.code == "LLM_UNCITED_ASSIGNMENT"]
+    assert len(uncited) == 1
+    assert uncited[0].incident_id == "INC-1"
+
+
+def test_llm_decision_engine_flags_assignment_with_no_citations() -> None:
+    result = _structured_engine(_provenance_result([])).recommend(_provenance_scenario())
+
+    assert result.assignments[0].evidence_ids == []
+    assert "LLM_UNCITED_ASSIGNMENT" in {finding.code for finding in result.safety_findings}
 
 
 def test_llm_decision_engine_retries_once_then_blocks() -> None:
@@ -581,3 +611,95 @@ def test_llm_decision_engine_blocks_approval_bypass_with_valid_assignment() -> N
     assert "LLM_HUMAN_APPROVAL_VIOLATION" in {
         finding.code for finding in result.safety_findings
     }
+
+
+def _travel_scenario() -> Scenario:
+    return Scenario.model_validate(
+        {
+            "scenario_id": "SCEN-travel",
+            "incidents": [
+                {
+                    "id": "INC-1",
+                    "type": "medical",
+                    "severity": "low",
+                    "location": [0, 0],
+                    "people_affected": 1,
+                    "reported_at_min": 0,
+                    "resources_needed": {"ambulance": 1},
+                }
+            ],
+            "resources": [
+                # Distance 50 at speed 5: the verified travel time is 10.0 minutes.
+                {"id": "RES-1", "type": "ambulance", "location": [30, 40], "eta_speed": 5.0},
+            ],
+        }
+    )
+
+
+def _travel_assignment(claimed_minutes: float) -> Assignment:
+    return Assignment(
+        incident_id="INC-1",
+        resource_id="RES-1",
+        resource_type="ambulance",
+        travel_minutes=claimed_minutes,
+    )
+
+
+@pytest.mark.parametrize("claimed_minutes", [10.0, 9.0, 11.0, 10.4])
+def test_travel_time_within_tolerance_is_accepted_and_overwritten(
+    claimed_minutes: float,
+) -> None:
+    accepted, _, findings, blocked = validate_llm_recommendation(
+        [_travel_assignment(claimed_minutes)], True, _travel_scenario()
+    )
+
+    assert [assignment.travel_minutes for assignment in accepted] == [10.0]
+    assert "LLM_TRAVEL_TIME_MISMATCH" not in {finding.code for finding in findings}
+    assert blocked is False
+
+
+@pytest.mark.parametrize("claimed_minutes", [0.0, 8.9, 11.1, 60.0])
+def test_travel_time_mismatch_is_critical_and_replaced_by_recomputed_value(
+    claimed_minutes: float,
+) -> None:
+    accepted, _, findings, blocked = validate_llm_recommendation(
+        [_travel_assignment(claimed_minutes)], True, _travel_scenario()
+    )
+
+    assert [assignment.travel_minutes for assignment in accepted] == [10.0]
+    mismatch = [finding for finding in findings if finding.code == "LLM_TRAVEL_TIME_MISMATCH"]
+    assert len(mismatch) == 1
+    assert mismatch[0].severity == "critical"
+    assert blocked is True
+
+
+def test_travel_time_tolerance_is_five_percent_above_twenty_minutes() -> None:
+    assert travel_time_tolerance(0.0) == 1.0
+    assert travel_time_tolerance(20.0) == 1.0
+    assert travel_time_tolerance(100.0) == 5.0
+
+
+def test_llm_engine_blocks_and_corrects_fabricated_travel_time() -> None:
+    result = _mock_engine(
+        {
+            "scenario_id": "SCEN-travel",
+            "engine": "nvidia_nim_v1",
+            "status": "requires_human_approval",
+            "assignments": [
+                {
+                    "incident_id": "INC-1",
+                    "resource_id": "RES-1",
+                    "resource_type": "ambulance",
+                    "travel_minutes": 2,
+                }
+            ],
+            "unmet_requirements": [],
+            "safety_findings": [],
+            "advisory_confidence": 1.0,
+            "decision_trace": ["Fast unit available."],
+        }
+    ).recommend(_travel_scenario())
+
+    assert result.status.value == "blocked"
+    assert result.assignments[0].travel_minutes == 10.0
+    assert "LLM_TRAVEL_TIME_MISMATCH" in {finding.code for finding in result.safety_findings}

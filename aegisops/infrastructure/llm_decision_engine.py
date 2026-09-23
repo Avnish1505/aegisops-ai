@@ -125,7 +125,8 @@ class LLMDecisionEngine:
         assignments, unmet, findings, blocked = validate_llm_recommendation(
             result.assignments, result.requires_human_approval, scenario
         )
-        assignments = self._map_assignment_evidence(assignments, evidence)
+        assignments, citation_findings = self._map_assignment_evidence(assignments, evidence)
+        findings = findings + citation_findings
         coverage = 1 - (
             sum(item.quantity for item in unmet)
             / max(1, len(assignments) + sum(item.quantity for item in unmet))
@@ -154,23 +155,31 @@ class LLMDecisionEngine:
     @staticmethod
     def _map_assignment_evidence(
         assignments: list[Assignment], evidence: list[Evidence]
-    ) -> list[Assignment]:
-        """Retain valid model citations, with all retrieved evidence as a legacy fallback."""
+    ) -> tuple[list[Assignment], list[SafetyFinding]]:
+        """Keep only citations of retrieved evidence; flag assignments left without any.
+
+        Invalid citations are dropped, never replaced: attaching all retrieved evidence to an
+        uncited assignment would manufacture provenance the model never claimed.
+        """
         available_ids = {item.id for item in evidence}
-        fallback_ids = [item.id for item in evidence]
-        return [
-            assignment.model_copy(
-                update={
-                    "evidence_ids": [
-                        evidence_id
-                        for evidence_id in assignment.evidence_ids
-                        if evidence_id in available_ids
-                    ]
-                    or fallback_ids
-                }
-            )
-            for assignment in assignments
-        ]
+        mapped: list[Assignment] = []
+        findings: list[SafetyFinding] = []
+        for assignment in assignments:
+            cited = [item for item in assignment.evidence_ids if item in available_ids]
+            if not cited:
+                findings.append(
+                    SafetyFinding(
+                        code="LLM_UNCITED_ASSIGNMENT",
+                        severity="high",
+                        incident_id=assignment.incident_id,
+                        message=(
+                            f"Assignment of {assignment.resource_id} cites no retrieved evidence; "
+                            "review it without supporting provenance."
+                        ),
+                    )
+                )
+            mapped.append(assignment.model_copy(update={"evidence_ids": cited}))
+        return mapped, findings
 
     def _blocked_result(
         self, scenario: Scenario, evidence: list[Evidence], reason: str
