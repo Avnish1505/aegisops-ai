@@ -15,3 +15,8 @@ dist/
 /data/
 .sf/
 evals/data/.cache/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/

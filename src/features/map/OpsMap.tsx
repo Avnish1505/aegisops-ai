@@ -1,7 +1,7 @@
 import type { Layer, PickingInfo } from '@deck.gl/core'
 import { IconLayer, PathLayer, PolygonLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers'
 import type { MapboxOverlay } from '@deck.gl/mapbox'
-import type { Map as MapLibreMap } from 'maplibre-gl'
+import type { Map as MapLibreMap, StyleSpecification } from 'maplibre-gl'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAlerts, useRoutes } from '../../api/queries'
 import { THEMES, rgb } from '../../design/tokens'
@@ -12,9 +12,19 @@ import type { MapSlotProps } from '../ops/OpsBoard'
 import { ICON_MAPPING, iconAtlas, type IconName } from './icons'
 
 /** Keyless OpenStreetMap vector tiles from OpenFreeMap, shown in greyscale (see index.css). */
-const STYLE = {
+const TILE_STYLE = {
   dark: 'https://tiles.openfreemap.org/styles/dark',
   light: 'https://tiles.openfreemap.org/styles/positron',
+}
+
+/** VITE_MAP_STYLE=blank draws no basemap (end-to-end tests run without tile servers). */
+function mapStyle(theme: 'dark' | 'light'): string | StyleSpecification {
+  if (import.meta.env.VITE_MAP_STYLE !== 'blank') return TILE_STYLE[theme]
+  return {
+    version: 8,
+    sources: {},
+    layers: [{ id: 'background', type: 'background', paint: { 'background-color': THEMES[theme].surface } }],
+  }
 }
 
 type Picked = { kind: 'incident'; incident: Incident } | { kind: 'unit'; unit: Resource }
@@ -58,7 +68,7 @@ export default function OpsMap({ scenario, plan, labels, selectedId, onSelect }:
         if (cancelled || !container.current) return
         const instance = new maplibre.Map({
           container: container.current,
-          style: STYLE[theme],
+          style: mapStyle(theme),
           bounds: bounds([...scenario.incidents.map((i) => i.location), ...scenario.resources.map((r) => r.location)]),
           fitBoundsOptions: { padding: 48 },
           // The tile source supplies the OpenFreeMap / OpenMapTiles / OpenStreetMap attribution.
@@ -90,7 +100,7 @@ export default function OpsMap({ scenario, plan, labels, selectedId, onSelect }:
   }, [scenario.scenario_id])
 
   useEffect(() => {
-    if (ready) map.current?.setStyle(STYLE[theme])
+    if (ready) map.current?.setStyle(mapStyle(theme))
   }, [theme, ready])
 
   const layers = useMemo((): Layer[] => {
