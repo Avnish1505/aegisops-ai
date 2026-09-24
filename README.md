@@ -147,10 +147,10 @@ incomplete (for example it maps 3 fire stations in the district).
 - [Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
 - [Two-minute demo script](docs/DEMO.md)
 - [Implementation Integrity Analyzer](docs/INTEGRITY_ANALYZER.md)
-- Design documents: [SRS](docs/SRS.md), [SAD](docs/SAD.md), [HLD](docs/HLD.md), [LLD](docs/LLD.md),
-  [Database](docs/DATABASE_SPECIFICATION.md), [Test Strategy](docs/TEST_STRATEGY.md)
-- Research drafts: [Research Proposal](docs/RESEARCH_PROPOSAL.md),
-  [Paper draft](docs/IEEE_PAPER_DRAFT.md)
+- [Architecture](docs/ARCHITECTURE.md) and [decision records](docs/adr/README.md)
+- [Database](docs/DATABASE_SPECIFICATION.md), [Test Strategy](docs/TEST_STRATEGY.md),
+  [User study protocol](docs/USER_STUDY.md)
+- Research draft: [Research Proposal](docs/RESEARCH_PROPOSAL.md)
 
-The design documents and research drafts were written in earlier phases. Where they disagree with
+The research proposal was written in an earlier phase. Where it disagrees with
 this README's Status table, the table and the code are authoritative.
