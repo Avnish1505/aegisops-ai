@@ -1,0 +1,181 @@
+{
+ "type": "FeatureCollection",
+ "metadata": {
+  "generated": 1790168171000,
+  "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson",
+  "title": "USGS All Earthquakes, Past Day",
+  "status": 200,
+  "api": "2.7.0",
+  "count": 4
+ },
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "mag": 1.8,
+    "place": "13 km SE of Skwentna, Alaska",
+    "time": 1790167742534,
+    "updated": 1790167849119,
+    "tz": null,
+    "url": "https://earthquake.usgs.gov/earthquakes/eventpage/aka2026swllkm",
+    "detail": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail/aka2026swllkm.geojson",
+    "felt": null,
+    "cdi": null,
+    "mmi": null,
+    "alert": null,
+    "status": "automatic",
+    "tsunami": 0,
+    "sig": 50,
+    "net": "ak",
+    "code": "a2026swllkm",
+    "ids": ",aka2026swllkm,",
+    "sources": ",ak,",
+    "types": ",origin,phase-data,",
+    "nst": 31,
+    "dmin": 0.2,
+    "rms": 0.5,
+    "gap": 64,
+    "magType": "ml",
+    "type": "earthquake",
+    "title": "M 1.8 - 13 km SE of Skwentna, Alaska"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -151.189,
+     61.918,
+     74
+    ]
+   },
+   "id": "aka2026swllkm"
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "mag": 1.03,
+    "place": "8 km SW of Anza, CA",
+    "time": 1790167741120,
+    "updated": 1790167992571,
+    "tz": null,
+    "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ci41337639",
+    "detail": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail/ci41337639.geojson",
+    "felt": null,
+    "cdi": null,
+    "mmi": null,
+    "alert": null,
+    "status": "automatic",
+    "tsunami": 0,
+    "sig": 16,
+    "net": "ci",
+    "code": "41337639",
+    "ids": ",ci41337639,",
+    "sources": ",ci,",
+    "types": ",nearby-cities,origin,phase-data,",
+    "nst": 64,
+    "dmin": 0.05479,
+    "rms": 0.2,
+    "gap": 20,
+    "magType": "ml",
+    "type": "earthquake",
+    "title": "M 1.0 - 8 km SW of Anza, CA"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -116.743333333333,
+     33.5106666666667,
+     3.35
+    ]
+   },
+   "id": "ci41337639"
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "mag": 0.7,
+    "place": "51 km ENE of Pedro Bay, Alaska",
+    "time": 1790165680887,
+    "updated": 1790165720266,
+    "tz": null,
+    "url": "https://earthquake.usgs.gov/earthquakes/eventpage/aka2026swkhpz",
+    "detail": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail/aka2026swkhpz.geojson",
+    "felt": null,
+    "cdi": null,
+    "mmi": null,
+    "alert": null,
+    "status": "automatic",
+    "tsunami": 0,
+    "sig": 8,
+    "net": "ak",
+    "code": "a2026swkhpz",
+    "ids": ",aka2026swkhpz,",
+    "sources": ",ak,",
+    "types": ",origin,phase-data,",
+    "nst": 6,
+    "dmin": 0.1,
+    "rms": 0.2,
+    "gap": 308,
+    "magType": "ml",
+    "type": "earthquake",
+    "title": "M 0.7 - 51 km ENE of Pedro Bay, Alaska"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -153.311,
+     60.018,
+     4.8
+    ]
+   },
+   "id": "aka2026swkhpz"
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "mag": 1.2,
+    "place": "13 km NE of Big Bear City, CA",
+    "time": 1790165403960,
+    "updated": 1790167867390,
+    "tz": null,
+    "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ci41337615",
+    "detail": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail/ci41337615.geojson",
+    "felt": null,
+    "cdi": null,
+    "mmi": null,
+    "alert": null,
+    "status": "reviewed",
+    "tsunami": 0,
+    "sig": 22,
+    "net": "ci",
+    "code": "41337615",
+    "ids": ",ci41337615,",
+    "sources": ",ci,",
+    "types": ",focal-mechanism,nearby-cities,origin,phase-data,",
+    "nst": 51,
+    "dmin": 0.0797,
+    "rms": 0.14,
+    "gap": 40,
+    "magType": "ml",
+    "type": "earthquake",
+    "title": "M 1.2 - 13 km NE of Big Bear City, CA"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     -116.7335,
+     34.3305,
+     1.44
+    ]
+   },
+   "id": "ci41337615"
+  }
+ ],
+ "bbox": [
+  -178.0114,
+  -60.2661,
+  -2.44,
+  156.4937,
+  67.389,
+  427.498
+ ]
+}

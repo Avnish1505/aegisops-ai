@@ -2,16 +2,26 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Protocol
 
 from aegisops.domain.models import DecisionResult, Evidence, Scenario
+from aegisops.planning.constraints import PlanningConstraint
+from aegisops.planning.travel import TravelTimeMatrix
 
 
 class DecisionEngine(Protocol):
     """A pluggable recommendation engine; outputs may never dispatch resources directly."""
 
-    def recommend(self, scenario: Scenario) -> DecisionResult:
-        """Create an auditable recommendation for human review."""
+    name: str
+
+    def recommend(
+        self,
+        scenario: Scenario,
+        travel_times: TravelTimeMatrix | None = None,
+        constraints: Sequence[PlanningConstraint] = (),
+    ) -> DecisionResult:
+        """Create an auditable proposal for verification and human review."""
 
 
 class RetrievalPort(Protocol):

@@ -1,3 +1,5 @@
+> **Superseded (2026-09-24).** These charts come from the same keyless run as `phase_4_experiment_report.json`, where the LLM engine was blocked on every scenario because no key was set. See `reports/README.md`.
+
 # Phase 3 evaluation visualizations
 
 - Coverage: ![](phase_3_coverage.png)

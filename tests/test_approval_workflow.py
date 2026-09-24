@@ -22,7 +22,7 @@ def make_minimal_scenario() -> dict:
                 "id": "inc-1",
                 "type": "medical",
                 "severity": "high",
-                "location": [40.7128, -74.0060],
+                "location": {"lat": 26.8407, "lon": 80.826},
                 "people_affected": 10,
                 "reported_at_min": now - 60,
                 "resources_needed": {"ambulance": 2},
@@ -32,7 +32,7 @@ def make_minimal_scenario() -> dict:
             {
                 "id": "res-1",
                 "type": "ambulance",
-                "location": [40.7138, -74.0050],
+                "location": {"lat": 26.8407, "lon": 80.826},
                 "available": True,
             }
         ],
@@ -57,7 +57,7 @@ def make_minimal_decision_result() -> dict:
         ],
         "unmet_requirements": [],
         "safety_findings": [],
-        "advisory_confidence": 0.85,
+        "coverage": 0.85,
         "decision_trace": ["rule1", "rule2"],
         "evidence_ids": [],
     }

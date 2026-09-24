@@ -1,0 +1,62 @@
+<cap:alert xmlns:cap="urn:oasis:names:tc:emergency:cap:1.2">
+<cap:identifier>IN-1790168189341029_29</cap:identifier>
+<cap:sender>Maharashtra-SDMA</cap:sender>
+<cap:sent>2026-09-23T18:26:29+05:30</cap:sent>
+<cap:status>Actual</cap:status>
+<cap:msgType>Alert</cap:msgType>
+<cap:scope>Public</cap:scope>
+<cap:restriction/>
+<cap:addresses/>
+<cap:note/>
+<cap:incidents/>
+<cap:info>
+<cap:language>en-IN</cap:language>
+<cap:category>Met</cap:category>
+<cap:event>Lightning</cap:event>
+<cap:urgency>Expected</cap:urgency>
+<cap:severity>Severe</cap:severity>
+<cap:certainty>Likely</cap:certainty>
+<cap:audience>1</cap:audience>
+<cap:effective>2026-09-23T18:25:00+05:30</cap:effective>
+<cap:onset>2026-09-23T18:26:54+05:30</cap:onset>
+<cap:expires>2026-09-23T21:25:00+05:30</cap:expires>
+<cap:headline>Lightning is Very Likely to occur over Chandrapur. Please follow SDMA guidelines.</cap:headline>
+<cap:description/>
+<cap:instruction>Please follow SDMA guidelines.</cap:instruction>
+<cap:contact/>
+<cap:parameter>
+<cap:valueName>Polygon URL</cap:valueName>
+<cap:value>https://sachet.ndma.gov.in/cap_public_website/FetchPolygonXMLFile?identifier=1790168189341029</cap:value>
+</cap:parameter>
+<cap:area>
+<cap:areaDesc>Chandrapur</cap:areaDesc>
+<cap:altitude>0</cap:altitude>
+<cap:ceiling>0</cap:ceiling>
+</cap:area>
+</cap:info>
+<cap:info>
+<cap:language>MR</cap:language>
+<cap:category>Met</cap:category>
+<cap:event>Lightning</cap:event>
+<cap:urgency>Expected</cap:urgency>
+<cap:severity>Severe</cap:severity>
+<cap:certainty>Likely</cap:certainty>
+<cap:audience>1</cap:audience>
+<cap:effective>2026-09-23T18:25:00+05:30</cap:effective>
+<cap:onset>2026-09-23T18:26:54+05:30</cap:onset>
+<cap:expires>2026-09-23T21:25:00+05:30</cap:expires>
+<cap:headline>आपल्या जिल्ह्यामध्ये काही ठिकाणी विजांच्या कडकडाट होण्याची शक्यता आहे. स्थानिक प्रशासनाने दिलेल्या सूचनांचे पालन करा आणि आवश्यक असल्याशिवाय घराबाहेर पडू नका. सुरक्षित आणि सतर्क रहा. SEOC मुंबई</cap:headline>
+<cap:description/>
+<cap:instruction>Please follow SDMA guidelines.</cap:instruction>
+<cap:contact/>
+<cap:parameter>
+<cap:valueName>Polygon URL</cap:valueName>
+<cap:value>https://sachet.ndma.gov.in/cap_public_website/FetchPolygonXMLFile?identifier=1790168189341029</cap:value>
+</cap:parameter>
+<cap:area>
+<cap:areaDesc>Chandrapur</cap:areaDesc>
+<cap:altitude>0</cap:altitude>
+<cap:ceiling>0</cap:ceiling>
+</cap:area>
+</cap:info>
+</cap:alert>

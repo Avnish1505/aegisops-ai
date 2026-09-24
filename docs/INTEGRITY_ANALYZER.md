@@ -107,3 +107,58 @@ from aegisops.integrity_analyzer.api import analyze_file
 parsed = analyze_file(Path("aegisops/domain/models.py"))
 print(parsed.tree.body)
 ```
+
+## Benchmark: analyzer vs naive baseline
+
+The Implementation Integrity Analyzer is evaluated against a labeled corpus of
+15 scenarios: 5 true-positive (one seeded integrity failure each), 5 clean
+(correctly wired, fully implemented code that must not be flagged), and 5 hard
+cases chosen to probe the limits of intra-file static analysis.
+
+The comparison point is a naive grep baseline that checks whether a
+safety-critical function name appears anywhere in the file.
+
+| Metric          | Naive Baseline | Analyzer |
+| --------------- | -------------- | -------- |
+| True positives  | 0              | 5        |
+| False positives | 0              | 4        |
+| False negatives | 6              | 1        |
+| True negatives  | 9              | 5        |
+| Precision       | n/a            | 0.556    |
+| Recall          | 0.000          | 0.833    |
+| MCC             | 0.000          | 0.389    |
+
+MCC is the headline metric: the corpus is small and class-imbalanced, so
+accuracy would be misleading.
+
+### Interpretation
+
+The baseline detects nothing (recall 0.000, undefined precision). This is not a
+strawman — it is the natural failure mode of string matching. A safety-critical
+function's name always appears in its own `def` line, so a text search cannot
+distinguish a gate that is *defined* from a gate that is actually *called*.
+Separating definition from invocation requires an AST-level call map, which is
+what the analyzer builds.
+
+The analyzer resolves all 10 easy scenarios correctly: 5 true positives and 5
+clean files with no false alarms. Its errors are concentrated entirely in the 5
+hard cases — 4 false positives and 1 false negative — and each corresponds to a
+limitation already documented in the module docstrings of `wiring_checker.py`
+and `scaffold_detector.py`: no alias resolution, no transitive call resolution
+through helpers, no `@abstractmethod` awareness, and no control-flow or ordering
+analysis (call-set presence only, not "runs before"). Nothing was excluded,
+retuned, or reweighted to improve these numbers.
+
+The error profile skews toward false positives rather than false negatives. For
+a safety-critical review tool this is the appropriate bias: a false alarm costs
+a developer one review, while a missed integrity violation ships an unguarded
+operation.
+
+### Reproducing
+
+```bash
+python -m aegisops.integrity_analyzer.benchmark.run_benchmark
+```
+
+This prints the table above and rewrites `aegisops/integrity_analyzer/benchmark/results.json`;
+the committed file holds the same numbers.

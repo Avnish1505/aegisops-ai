@@ -1,5 +1,6 @@
 """Security tests for the application."""
 
+from auth_helpers import bearer
 from fastapi.testclient import TestClient
 
 from aegisops.api.app import create_app
@@ -16,7 +17,8 @@ def _client() -> TestClient:
                 cors_origins=("http://testserver",),
                 database_url="sqlite://",
             )
-        )
+        ),
+        headers=bearer(),
     )
 
 
@@ -114,7 +116,7 @@ def test_invalid_json():
 
 def test_health_endpoints_no_sensitive_info():
     """Test that health endpoints don't leak sensitive information."""
-    endpoints = ["/health/live", "/health/ready", "/health"]
+    endpoints = ["/health/live", "/health/ready"]
     for endpoint in endpoints:
         response = client.get(endpoint)
         assert response.status_code == 200

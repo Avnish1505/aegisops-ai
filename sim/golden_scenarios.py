@@ -43,7 +43,7 @@ def golden_scenarios() -> tuple[GoldenScenario, ...]:
                             "id": "INC-medical",
                             "type": "medical",
                             "severity": "low",
-                            "location": [0, 0],
+                            "location": {"lat": 26.8, "lon": 80.9},
                             "people_affected": 1,
                             "reported_at_min": 0,
                             "resources_needed": {"ambulance": 1},
@@ -53,7 +53,7 @@ def golden_scenarios() -> tuple[GoldenScenario, ...]:
                         {
                             "id": "RES-ambulance",
                             "type": "ambulance",
-                            "location": [0, 0],
+                            "location": {"lat": 26.8, "lon": 80.9},
                             "available": True,
                         }
                     ],
@@ -78,7 +78,7 @@ def golden_scenarios() -> tuple[GoldenScenario, ...]:
                             "id": "INC-critical",
                             "type": "medical",
                             "severity": "critical",
-                            "location": [0, 0],
+                            "location": {"lat": 26.8, "lon": 80.9},
                             "people_affected": 10,
                             "reported_at_min": 0,
                             "resources_needed": {"ambulance": 1},
@@ -107,7 +107,7 @@ def golden_scenarios() -> tuple[GoldenScenario, ...]:
                             "id": "INC-high",
                             "type": "medical",
                             "severity": "high",
-                            "location": [0, 0],
+                            "location": {"lat": 26.8, "lon": 80.9},
                             "people_affected": 5,
                             "reported_at_min": 0,
                             "resources_needed": {"ambulance": 1},
@@ -117,7 +117,7 @@ def golden_scenarios() -> tuple[GoldenScenario, ...]:
                         {
                             "id": "RES-unavailable",
                             "type": "ambulance",
-                            "location": [0, 0],
+                            "location": {"lat": 26.8, "lon": 80.9},
                             "available": False,
                         }
                     ],
@@ -142,7 +142,7 @@ def golden_scenarios() -> tuple[GoldenScenario, ...]:
                             "id": "INC-high",
                             "type": "medical",
                             "severity": "high",
-                            "location": [0, 0],
+                            "location": {"lat": 26.8, "lon": 80.9},
                             "people_affected": 5,
                             "reported_at_min": 0,
                             "resources_needed": {"ambulance": 1},
@@ -151,7 +151,7 @@ def golden_scenarios() -> tuple[GoldenScenario, ...]:
                             "id": "INC-low",
                             "type": "medical",
                             "severity": "low",
-                            "location": [1, 1],
+                            "location": {"lat": 26.801, "lon": 80.901},
                             "people_affected": 1,
                             "reported_at_min": 0,
                             "resources_needed": {"ambulance": 1},
@@ -161,7 +161,7 @@ def golden_scenarios() -> tuple[GoldenScenario, ...]:
                         {
                             "id": "RES-ambulance",
                             "type": "ambulance",
-                            "location": [0, 0],
+                            "location": {"lat": 26.8, "lon": 80.9},
                             "available": True,
                         }
                     ],

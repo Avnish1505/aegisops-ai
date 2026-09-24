@@ -2,10 +2,15 @@
 .github
 .pytest_cache
 .ruff_cache
+.mypy_cache
 __pycache__
 *.py[cod]
+*.db
 .env
 venv
+node_modules
+dist
 tests
 docs
 frontend
+data

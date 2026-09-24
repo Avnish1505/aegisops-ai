@@ -1,4 +1,5 @@
 {
+  "_superseded": "SUPERSEDED (2026-09-24). Generated without an LLM key, so its llm_rag numbers (blocked on 30/30 scenarios) measure the fallback path, not a model. Replaced by the M2b evaluation: evals/run.py (Reader, constraint translation, SITREP, end-to-end) and evals/llm_vs_solver.py (LLM-direct allocation vs CP-SAT), which write reports/eval_<date>.md and reports/llm_vs_solver.md. Kept for history only.",
   "_provenance": {
     "generated_by": "sim/experiment_report.py",
     "command": "python -m sim.experiment_report --start-seed 1 --end-seed 30",

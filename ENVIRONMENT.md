@@ -4,16 +4,31 @@ This document outlines the environment variables and deployment configurations f
 
 ## Environment Variables
 
-The application uses the following environment variables. Default values are provided where applicable.
+Every setting in `aegisops/core/config.py` is read from an `AEGISOPS_`-prefixed environment variable;
+names are case-insensitive. Unprefixed names such as `SECRET_KEY` or `DATABASE_URL` are ignored
+(`tests/test_config.py`).
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `AEGISOPS_ENVIRONMENT` | Runtime mode (`development`, `staging`, `production`) | `development` | No |
-| `AEGISOPS_DEBUG` | Enable debug mode (`true` or `false`) | `true` | No |
+| `AEGISOPS_ENVIRONMENT` | Runtime mode. `development` mounts `/api/v1/dev/token`; anything other than `development`/`test` refuses the default key | `production` | No |
+| `AEGISOPS_DEBUG` | Enable debug mode (`true` or `false`) | `false` | No |
 | `AEGISOPS_CORS_ORIGINS` | Comma-separated list of allowed CORS origins | `http://localhost:3000,http://localhost:5173` | No |
-| `SECRET_KEY` | Secret key for cryptographic operations (e.g., JWT) | `your_secret_key_here` (must be changed in production) | Yes |
-| `RATE_LIMIT` | Rate limit for API endpoints (format: `X/minute` or `X/second`) | `100/minute` | No |
-| `DATABASE_URL` | Database connection string (SQLite by default) | `sqlite:///./aegisops.db` | No |
+| `AEGISOPS_SECRET_KEY` | HS256 JWT signing key (≥32 bytes) | published development key | Yes, outside development |
+| `AEGISOPS_JWT_ALGORITHM` | `HS256` or `RS256` | `HS256` | No |
+| `AEGISOPS_JWT_JWKS_URL` | OIDC JWKS URL; required for `RS256` | — | With RS256 |
+| `AEGISOPS_JWT_ISSUER` / `AEGISOPS_JWT_AUDIENCE` | Required `iss` / `aud` claims when set | — | No |
+| `AEGISOPS_OSRM_URL` | OSRM base URL for road travel times (e.g. `http://osrm:5000`); unset uses straight-line estimates | — | No |
+| `AEGISOPS_INGEST_SACHET_RSS_URL` / `AEGISOPS_INGEST_USGS_URL` / `AEGISOPS_INGEST_GDACS_URL` | Feed URLs polled by `python -m aegisops.ingestion.worker` | the public feeds | No |
+| `AEGISOPS_INGEST_*_INTERVAL_MIN` | Poll intervals in minutes (SACHET, USGS, GDACS) | 5, 5, 15 | No |
+| `AEGISOPS_LLM_API_KEY` (or `NVIDIA_API_KEY`) | Key for the OpenAI-compatible LLM endpoint | — | For live LLM calls |
+| `AEGISOPS_LLM_BASE_URL` / `AEGISOPS_LLM_MODEL` | Endpoint and model | NVIDIA NIM, `nvidia/llama-3.1-nemotron-70b-instruct` | No |
+| `AEGISOPS_LLM_PRICE_IN_USD_PER_MTOK` / `..._OUT_...` | Prices for cost estimates (reference: OpenRouter Llama-3.3-70B list price, 2026-09-23) | 0.10 / 0.32 | No |
+| `AEGISOPS_LLM_CASSETTE_MODE` / `AEGISOPS_LLM_CASSETTE_DIR` | `record` or `replay` LLM HTTP exchanges | `off` | No |
+| `AEGISOPS_OTEL_ENDPOINT` (or `OTEL_EXPORTER_OTLP_ENDPOINT`) | OTLP/HTTP base URL for traces (compose: Phoenix at `http://phoenix:6006`) | unset (no export) | No |
+| `AEGISOPS_OTEL_SERVICE_NAME` | `service.name` on exported spans | `aegisops-api` | No |
+| `AEGISOPS_JWT_ROLE_CLAIM` | Claim holding the role (string or list) | `role` | No |
+| `AEGISOPS_RATE_LIMIT` | Rate limit for API endpoints (format: `X/minute` or `X/second`) | `100/minute` | No |
+| `AEGISOPS_DATABASE_URL` | Database connection string (SQLite by default) | `sqlite:///./aegisops.db` | No |
 
 ### Example `.env` file
 
@@ -21,9 +36,9 @@ The application uses the following environment variables. Default values are pro
 AEGISOPS_ENVIRONMENT=production
 AEGISOPS_DEBUG=false
 AEGISOPS_CORS_ORIGINS=https://example.com,https://app.example.com
-SECRET_KEY=a_very_strong_secret_key_here
-RATE_LIMIT=100/minute
-DATABASE_URL=postgresql://user:password@localhost:5432/aegisops
+AEGISOPS_SECRET_KEY=a_very_strong_secret_key_here
+AEGISOPS_RATE_LIMIT=100/minute
+AEGISOPS_DATABASE_URL=sqlite:////app/data/aegisops.db
 ```
 
 ## Deployment Configurations
@@ -42,23 +57,23 @@ docker build -t aegisops-ai .
 docker run -p 8000:8000 \
   -e AEGISOPS_ENVIRONMENT=production \
   -e AEGISOPS_DEBUG=false \
-  -e SECRET_KEY=your_secret_key_here \
-  -e RATE_LIMIT=100/minute \
+  -e AEGISOPS_SECRET_KEY=your_secret_key_here \
+  -e AEGISOPS_RATE_LIMIT=100/minute \
   aegisops-ai
 ```
 
 ### Docker Compose
 
-For local development and testing, a `docker-compose.yml` file is provided.
-
-#### Usage
+Run `./scripts/osrm_prepare.sh` once, then `docker compose up --build`: PostgreSQL + PostGIS
+(`db`), OSRM (`osrm`; host port 5001, since macOS AirPlay holds 5000), Arize Phoenix for traces
+(port 6006), the API (port 8000), the feed worker and the console (port 5173, built by
+`Dockerfile.ui`). Put `AEGISOPS_LLM_API_KEY` in `./.env` (gitignored) to enable the LLM steps. The API service migrates, imports facilities from `data/osm`, seeds
+the Lucknow exercise and plans it once (`scripts/compose_api_start.sh`). Data lives in the
+`pgdata` volume.
 
 ```bash
-# Start the services
-docker-compose up
-
-# Stop the services
-docker-compose down
+docker compose up --build   # start
+docker compose down -v      # stop and delete the database volume
 ```
 
 ### Railway
@@ -84,6 +99,6 @@ The frontend can be deployed to Vercel using the `vercel.json` configuration.
 
 ## Notes
 
-- Never commit sensitive values (like `SECRET_KEY`) to version control. Use environment variables or secret management tools.
+- Never commit sensitive values (like `AEGISOPS_SECRET_KEY`) to version control. Use environment variables or secret management tools.
 - The `.env.example` file provides a template for local development. Copy it to `.env` and adjust as needed.
 - In production, ensure that `AEGISOPS_DEBUG` is set to `false` and `AEGISOPS_ENVIRONMENT` is set to `production`.

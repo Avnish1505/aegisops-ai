@@ -67,7 +67,7 @@ def _provenance_statistics(
         assignment for decision in decisions for assignment in decision["assignments"]
     ]
     sources = Counter(item["source"] for item in evidence)
-    cited_assignments = sum(bool(assignment["evidence_ids"]) for assignment in assignments)
+    cited_assignments = sum(bool(assignment["citations"]) for assignment in assignments)
     return {
         "decisions": len(decisions),
         "decisions_with_evidence": sum(bool(decision["evidence"]) for decision in decisions),

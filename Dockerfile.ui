@@ -1,0 +1,19 @@
+# Operations console: build the Vite bundle, then serve it as static files.
+FROM node:22-alpine AS build
+WORKDIR /ui
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY index.html vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json \
+     tsconfig.test.json ./
+COPY src ./src
+# The browser calls the API directly, so this is the API address as seen from the host.
+ARG VITE_API_BASE_URL=http://localhost:8000
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+# "true" enables the development sign-in (tokens from the API's /api/v1/dev/token).
+ARG VITE_DEV_AUTH=false
+ENV VITE_DEV_AUTH=$VITE_DEV_AUTH
+RUN npm run build
+
+FROM nginx:1.27-alpine
+COPY --from=build /ui/dist /usr/share/nginx/html
+EXPOSE 80

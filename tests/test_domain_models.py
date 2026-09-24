@@ -3,6 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
+from aegisops.application.scenario_service import generate_scenario
 from aegisops.domain.models import (
     Assignment,
     DecisionResult,
@@ -10,6 +11,7 @@ from aegisops.domain.models import (
     Evidence,
     Incident,
     IncidentType,
+    Location,
     Resource,
     ResourceType,
     SafetyFinding,
@@ -123,7 +125,7 @@ def test_decision_result_evidence_ids_default():
         assignments=[assignment],
         unmet_requirements=[unmet],
         safety_findings=[safety],
-        advisory_confidence=0.8,
+        coverage=0.8,
         decision_trace=["step1", "step2"],
     )
     assert decision.evidence_ids == []
@@ -145,14 +147,14 @@ def test_decision_result_evidence_ids_can_be_set():
         assignments=[assignment],
         unmet_requirements=[],
         safety_findings=[],
-        advisory_confidence=0.8,
+        coverage=0.8,
         decision_trace=["step1"],
         evidence_ids=["ev1", "ev2"],
     )
     assert decision.evidence_ids == ["ev1", "ev2"]
 
 
-def test_assignment_evidence_ids_default_for_compatibility():
+def test_assignment_citations_default_to_empty():
     assignment = Assignment(
         incident_id="inc1",
         resource_id="res1",
@@ -160,7 +162,7 @@ def test_assignment_evidence_ids_default_for_compatibility():
         travel_minutes=5.0,
     )
 
-    assert assignment.evidence_ids == []
+    assert assignment.citations == []
 
 
 # Existing model tests to ensure we didn't break anything
@@ -169,7 +171,7 @@ def test_incident_valid():
         id="inc1",
         type=IncidentType.MEDICAL,
         severity=Severity.MEDIUM,
-        location=(10.0, 20.0),
+        location=Location(lat=26.81, lon=80.92),
         people_affected=10,
         reported_at_min=0,
         resources_needed={ResourceType.AMBULANCE: 2},
@@ -181,7 +183,7 @@ def test_resource_valid():
     resource = Resource(
         id="res1",
         type=ResourceType.AMBULANCE,
-        location=(10.0, 20.0),
+        location=Location(lat=26.81, lon=80.92),
     )
     assert resource.id == "res1"
 
@@ -191,7 +193,7 @@ def test_scenario_valid():
         id="inc1",
         type=IncidentType.MEDICAL,
         severity=Severity.MEDIUM,
-        location=(10.0, 20.0),
+        location=Location(lat=26.81, lon=80.92),
         people_affected=10,
         reported_at_min=0,
         resources_needed={ResourceType.AMBULANCE: 2},
@@ -199,7 +201,7 @@ def test_scenario_valid():
     resource = Resource(
         id="res1",
         type=ResourceType.AMBULANCE,
-        location=(30.0, 40.0),
+        location=Location(lat=26.83, lon=80.94),
     )
     scenario = Scenario(
         scenario_id="sc1",
@@ -207,3 +209,13 @@ def test_scenario_valid():
         resources=[resource],
     )
     assert scenario.scenario_id == "sc1"
+
+
+def test_scenario_sha256_is_stable_and_content_sensitive() -> None:
+    first = generate_scenario(seed=5)
+    same = Scenario.model_validate(first.model_dump(mode="json"))
+    changed = first.model_copy(update={"sim_start_min": first.sim_start_min + 1})
+
+    assert first.sha256() == same.sha256()
+    assert len(first.sha256()) == 64
+    assert first.sha256() != changed.sha256()

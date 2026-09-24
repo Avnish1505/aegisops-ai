@@ -1,3 +1,4 @@
+from auth_helpers import bearer
 from fastapi.testclient import TestClient
 
 from aegisops.api.app import create_app
@@ -13,7 +14,8 @@ def _client() -> TestClient:
                 cors_origins=("http://testserver",),
                 database_url="sqlite://",
             )
-        )
+        ),
+        headers=bearer(),
     )
 
 
@@ -66,8 +68,78 @@ def test_decision_endpoint_rejects_unknown_engine() -> None:
     assert response.status_code == 422
 
 
-def test_legacy_simulate_endpoint_accepts_prototype_max_turns_field() -> None:
-    response = _client().post("/simulate", json={"seed": 3, "max_turns": 4})
 
-    assert response.status_code == 200
-    assert response.json()["engine"] == "rule_based_baseline_v1"
+def test_legacy_prototype_routes_are_removed() -> None:
+    client = _client()
+
+    assert client.get("/health").status_code == 404
+    assert client.get("/scenario?seed=3").status_code == 404
+    assert client.post("/simulate", json={"seed": 3}).status_code == 404
+
+
+def test_decision_reports_coverage_not_advisory_confidence() -> None:
+    body = _client().post("/api/v1/decisions", json={"seed": 3}).json()
+
+    assert 0.0 <= body["coverage"] <= 1.0
+    assert "advisory_confidence" not in body
+
+
+def test_every_engine_returns_a_verification_report_and_sitrep() -> None:
+    client = _client()
+    for engine in ("solver", "rule_based", "llm_rag"):
+        body = client.post(f"/api/v1/decisions?engine={engine}", json={"seed": 5}).json()
+
+        assert body["verification"]["verdict"] in {"pass", "blocked"}
+        assert {check["id"] for check in body["verification"]["checks"]} >= {
+            "unit_exists",
+            "travel_time_matches",
+            "human_approval_required",
+        }
+        assert body["drafts"][0]["kind"] == "sitrep"
+        assert body["requires_human_approval"] is True
+
+
+def test_solver_is_the_default_engine_and_passes_its_own_verification() -> None:
+    body = _client().post("/api/v1/decisions", json={"seed": 5}).json()
+
+    assert body["engine"] == "cp_sat_v1"
+    assert body["solve_status"] == "optimal"
+    assert body["objective"] == body["reference_objective"]
+    assert [c["id"] for c in body["verification"]["checks"] if not c["passed"]] == []
+
+
+def test_conflicting_constraints_block_with_an_explanation() -> None:
+    scenario = _client().get("/api/v1/scenarios?seed=5").json()
+    unit = scenario["resources"][0]
+    constraints = [
+        {"kind": "exclude_unit", "unit_id": unit["id"]},
+        {
+            "kind": "reserve",
+            "resource_type": unit["type"],
+            "count": 1,
+            "zone": {
+                "id": "pin",
+                "min_lat": unit["location"]["lat"],
+                "min_lon": unit["location"]["lon"],
+                "max_lat": unit["location"]["lat"],
+                "max_lon": unit["location"]["lon"],
+            },
+        },
+    ]
+
+    body = _client().post(
+        "/api/v1/decisions", json={"scenario": scenario, "constraints": constraints}
+    ).json()
+
+    assert body["status"] == "blocked"
+    assert body["solve_status"] == "infeasible"
+    assert "constraints_feasible" in body["verification"]["blocking_check_ids"]
+    assert len(body["infeasibility"]["conflicting_constraints"]) == 2
+
+
+def test_unknown_constraint_kind_is_rejected() -> None:
+    response = _client().post(
+        "/api/v1/decisions", json={"seed": 1, "constraints": [{"kind": "teleport"}]}
+    )
+
+    assert response.status_code == 422

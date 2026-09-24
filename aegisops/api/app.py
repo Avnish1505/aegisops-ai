@@ -6,46 +6,80 @@ import logging
 import time
 import uuid
 from collections.abc import Awaitable, Callable
-from pathlib import Path
-from typing import Annotated, Literal, Protocol, cast
+from typing import Annotated, Literal, cast
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from starlette.status import HTTP_422_UNPROCESSABLE_CONTENT, HTTP_500_INTERNAL_SERVER_ERROR
 
+from aegisops.api.auth import (
+    Principal,
+    TokenVerifier,
+    check_secret_configuration,
+    issue_dev_token,
+    require_operator,
+    require_viewer,
+)
+from aegisops.api.console import TicketBook, alert_areas, console_router
+from aegisops.api.demo import DemoClock, demo_router, start_reset_schedule
+from aegisops.api.intake_api import intake_router
 from aegisops.api.schemas import (
     DecisionDispositionRequest,
+    DevTokenRequest,
     ErrorResponse,
     ScenarioDecisionRequest,
+    TranslateNoteRequest,
 )
-from aegisops.api.security import require_operator
+from aegisops.application.decision_service import DecisionService
 from aegisops.application.roles import UserRole
 from aegisops.application.scenario_service import generate_scenario
+from aegisops.audit.event_log import (
+    append_event,
+    approval_record_sha256,
+    record_ref,
+    verify_chain,
+)
+from aegisops.communication.reporter import Reporter
 from aegisops.core.config import Settings
 from aegisops.core.logging import configure_logging, request_id_var
+from aegisops.domain.canonical import sha256_hex
 from aegisops.domain.models import DecisionResult, Scenario
+from aegisops.geodata.labels import Labeller
+from aegisops.infrastructure.decision_store import record_decision, serialize_decision
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 from aegisops.infrastructure.retrieval_engine import RetrievalEngine
 from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
-from backend.db.models import Approval, AuditLog, Base, Decision, User
+from aegisops.intake.constraints import ConstraintTranslator
+from aegisops.intake.gazetteer import DEFAULT_GAZETTEER, Gazetteer
+from aegisops.intake.reader import Reader
+from aegisops.llm.client import LLMClient, LLMError, LLMOutputError
+from aegisops.planning.providers import default_travel_provider
+from aegisops.planning.travel import TravelTimeMatrix, TravelTimeProvider
+from aegisops.telemetry import configure_tracing, current_traceparent, step_span
+from backend.db.models import Alert, Approval, Base, Decision, Exercise, User
+from backend.demo_reset import reset_demo
 
 logger = logging.getLogger(__name__)
 
 
-class DecisionEngine(Protocol):
-    def recommend(self, scenario: Scenario) -> DecisionResult: ...
-
-
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    travel_provider: TravelTimeProvider | None = None,
+    token_verifier: TokenVerifier | None = None,
+    llm_client: LLMClient | None = None,
+) -> FastAPI:
     """Build the API with injected configuration for deterministic testing."""
     active_settings = settings or Settings()
+    check_secret_configuration(active_settings)
     configure_logging(active_settings.debug)
+    configure_tracing(active_settings.otel_endpoint, active_settings.otel_service_name)
     app = FastAPI(
         title=active_settings.application_name,
         version=active_settings.version,
@@ -70,10 +104,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=[str(origin).rstrip("/") for origin in active_settings.cors_origins],
         allow_credentials=False,
         allow_methods=["GET", "POST"],
-        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID", "traceparent"],
+        expose_headers=["traceparent"],
     )
 
     app.state.settings = active_settings
+    app.state.token_verifier = token_verifier or TokenVerifier(active_settings)
     app.state.session_factory = session_factory
 
     # Rate limiting setup
@@ -124,8 +160,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse(
             status_code=HTTP_422_UNPROCESSABLE_CONTENT,
             content=ErrorResponse(
-                detail="Request validation failed.", request_id=request_id
-            ).model_dump(),
+                detail="Request validation failed.",
+                request_id=request_id,
+                errors=[
+                    {
+                        "loc": [str(part) for part in error.get("loc", ())],
+                        "message": str(error.get("msg", "")).removeprefix("Value error, "),
+                    }
+                    for error in exc.errors()
+                ],
+            ).model_dump(exclude_none=True),
         )
 
     @app.exception_handler(Exception)
@@ -139,12 +183,59 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ).model_dump(),
         )
 
-    engines: dict[str, DecisionEngine] = {
-        "rule_based": RuleBasedDecisionEngine(),
-        "llm_rag": LLMDecisionEngine(
-            RetrievalEngine(Path(__file__).parents[2] / "knowledge")
-        ),
-    }
+    llm = llm_client or LLMClient(active_settings)
+    travel = travel_provider or default_travel_provider(active_settings)
+    decision_service = DecisionService(
+        {
+            "rule_based": RuleBasedDecisionEngine(),
+            "llm_rag": LLMDecisionEngine(
+                RetrievalEngine(active_settings.knowledge_base_path), llm=llm
+            ),
+        },
+        travel,
+    )
+
+    gazetteer = Gazetteer.load(DEFAULT_GAZETTEER)
+    demo_clock = (
+        DemoClock(active_settings.demo_reset_interval_min)
+        if active_settings.environment == "demo" else None
+    )
+    app.include_router(
+        console_router(
+            session_factory, active_settings, llm, TicketBook(), Labeller(gazetteer), travel,
+            demo=demo_clock,
+        )
+    )
+    reader = Reader(llm, gazetteer)
+    translator = ConstraintTranslator(llm, gazetteer)
+    reporter = Reporter(llm)
+
+    def require_llm() -> None:
+        if not llm.available:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="No LLM is configured (set AEGISOPS_LLM_API_KEY).",
+            )
+
+    app.include_router(intake_router(session_factory, reader, require_llm))
+
+    @app.post("/api/v1/constraints/translate", tags=["intake"])
+    async def translate_constraint(
+        request: Request,
+        request_body: TranslateNoteRequest,
+        principal: Annotated[Principal, Depends(require_operator)],
+    ) -> dict[str, object]:
+        """Operator note -> one proposed constraint. The solver only uses it once the operator
+        confirms it by sending it back in a decision request's ``constraints``."""
+        del principal
+        require_llm()
+        try:
+            result = translator.translate(request_body.note, request_body.scenario)
+        except (LLMError, LLMOutputError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Translator failed: {error}"
+            ) from error
+        return result.proposal.model_dump(mode="json")
 
     @app.get("/health/live", tags=["health"])
     @limiter.limit(active_settings.rate_limit)
@@ -166,49 +257,175 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def get_scenario(request: Request, seed: int | None = None) -> dict[str, object]:
         return cast(dict[str, object], generate_scenario(seed=seed).model_dump(mode="json"))
 
+    @app.get("/api/v1/alerts", tags=["alerts"])
+    @limiter.limit(active_settings.rate_limit)
+    async def list_alerts(
+        request: Request,
+        source: Literal["sachet", "usgs", "gdacs"] | None = None,
+        limit: int = Query(default=25, ge=1, le=200),
+    ) -> list[dict[str, object]]:
+        """Latest ingested alerts (summaries; the stored raw payload is not returned)."""
+        query = select(Alert).order_by(Alert.sent_at.desc().nulls_last(), Alert.id.desc())
+        if source is not None:
+            query = query.where(Alert.source == source)
+        with session_factory() as session:
+            return [
+                {
+                    "source": alert.source,
+                    "identifier": alert.identifier,
+                    "sent_at": alert.sent_at.isoformat() if alert.sent_at else None,
+                    "fetched_at": alert.fetched_at.isoformat(),
+                    "event": alert.event,
+                    "severity": alert.severity,
+                    "headline": alert.headline,
+                    "area_desc": alert.area_desc,
+                    "location": (
+                        {"lat": alert.location[0], "lon": alert.location[1]}
+                        if alert.location
+                        else None
+                    ),
+                    "areas": alert_areas(alert.parsed),
+                }
+                for alert in session.scalars(query.limit(limit))
+            ]
+
+    @app.get("/api/v1/exercises", tags=["scenarios"])
+    @limiter.limit(active_settings.rate_limit)
+    async def list_exercises(request: Request) -> list[dict[str, object]]:
+        with session_factory() as session:
+            return [
+                {
+                    "id": exercise.id,
+                    "name": exercise.name,
+                    "description": exercise.description,
+                    "incidents": len(cast(list[object], exercise.scenario["incidents"])),
+                    "resources": len(cast(list[object], exercise.scenario["resources"])),
+                    "scenario_sha256": exercise.scenario_sha256,
+                }
+                for exercise in session.scalars(select(Exercise).order_by(Exercise.id))
+            ]
+
+    @app.get("/api/v1/exercises/{exercise_id}", tags=["scenarios"])
+    @limiter.limit(active_settings.rate_limit)
+    async def get_exercise(request: Request, exercise_id: str) -> dict[str, object]:
+        with session_factory() as session:
+            exercise = session.get(Exercise, exercise_id)
+            if exercise is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Exercise not found."
+                )
+            return exercise.scenario
+
     @app.post("/api/v1/decisions", tags=["decisions"])
     async def create_decision(
         request: Request,
         request_body: ScenarioDecisionRequest,
-        role: Annotated[UserRole, Depends(require_operator)],
-        engine: Literal["rule_based", "llm_rag"] = "rule_based",
+        principal: Annotated[Principal, Depends(require_operator)],
+        engine: Literal["solver", "rule_based", "llm_rag"] = "solver",
+        traceparent: Annotated[str | None, Header()] = None,
     ) -> dict[str, object]:
+        """Plan and verify. A ``traceparent`` header (e.g. from ``/intake/read``) puts this
+        decision in the same trace as the report that led to it."""
         scenario: Scenario = (
             request_body.scenario or generate_scenario(seed=request_body.seed)
         )
-        result: DecisionResult = engines[engine].recommend(scenario)
-
-        with session_factory.begin() as session:
-            decision = Decision(
-                scenario_id=result.scenario_id,
-                engine=result.engine,
-                status=result.status.value,
-                requires_human_approval=result.requires_human_approval,
-                advisory_confidence=result.advisory_confidence,
-                decision_trace=result.decision_trace,
-            )
-            session.add(decision)
-            session.flush()
-            session.add(
-                AuditLog(
-                    user_id=None,
-                    action="decision_created",
-                    table_name="decisions",
-                    record_id=str(decision.id),
-                    change_data={"actor": role.name.lower(), "scenario_id": result.scenario_id},
+        with step_span("plan", traceparent=traceparent, engine=engine) as span:
+            outcome = decision_service.decide(scenario, engine, request_body.constraints)
+            with session_factory.begin() as session:
+                decision = record_decision(
+                    session, scenario, outcome, proposer=principal.sub,
+                    trace_parent=current_traceparent(),
+                    constraint_sources=[
+                        source.model_dump() if source else None
+                        for source in request_body.constraint_sources
+                    ],
                 )
+                span.set_attributes({"aegisops.decision_id": decision.id,
+                                     "aegisops.status": decision.status})
+                return serialize_decision(decision)
+
+    @app.get("/api/v1/decisions/{decision_id}", tags=["decisions"])
+    async def get_decision(
+        request: Request,
+        decision_id: int,
+        principal: Annotated[Principal, Depends(require_viewer)],
+    ) -> dict[str, object]:
+        del principal
+        with session_factory() as session:
+            decision = session.get(Decision, decision_id)
+            if decision is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Decision not found.",
+                )
+            return serialize_decision(decision)
+
+    @app.post("/api/v1/decisions/{decision_id}/drafts", tags=["decisions"])
+    async def draft_reports(
+        request: Request,
+        decision_id: int,
+        principal: Annotated[Principal, Depends(require_operator)],
+    ) -> dict[str, object]:
+        """SITREP and CAP 1.2 drafts for a stored decision. Returned for review only: nothing is
+        published, and each draft says whether every number in it passed the verifier."""
+        with session_factory.begin() as session:
+            decision = session.get(Decision, decision_id)
+            if decision is None or decision.scenario is None or decision.travel_times is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Decision not found."
+                )
+            scenario = Scenario.model_validate(decision.scenario)
+            plan = DecisionResult.model_validate(
+                {
+                    "scenario_id": decision.scenario_id,
+                    "engine": decision.engine,
+                    "status": decision.status,
+                    "assignments": decision.assignments or [],
+                    "unmet_requirements": decision.unmet_requirements or [],
+                    "safety_findings": decision.safety_findings or [],
+                    "coverage": decision.coverage,
+                    "decision_trace": decision.decision_trace,
+                }
             )
-            response = cast(dict[str, object], result.model_dump(mode="json"))
-            response["decision_id"] = decision.id
-        return response
+            with step_span("communicate", traceparent=decision.trace_parent,
+                           decision_id=decision.id):
+                drafts = reporter.draft(
+                    plan, scenario, TravelTimeMatrix.model_validate(decision.travel_times)
+                )
+            append_event(
+                session,
+                actor=principal.sub,
+                type="drafts_generated",
+                payload={
+                    "decision_id": decision.id,
+                    "sitrep_sha256": sha256_hex(drafts.sitrep.document),
+                    "cap_sha256": sha256_hex(drafts.cap.document),
+                    "sitrep_numbers_verified": drafts.sitrep.numbers_verified,
+                    "cap_numbers_verified": drafts.cap.numbers_verified,
+                    "sources": [drafts.sitrep.source, drafts.cap.source],
+                },
+            )
+        return {
+            "decision_id": decision_id,
+            "sitrep": drafts.sitrep.model_dump(mode="json"),
+            "cap": drafts.cap.model_dump(mode="json"),
+            "llm_calls": len(drafts.records),
+            "cost_usd": sum(record.cost_usd for record in drafts.records),
+        }
 
     @app.post("/api/v1/decisions/{decision_id}/disposition", tags=["decisions"])
     async def create_disposition(
         request: Request,
         decision_id: int,
         request_body: DecisionDispositionRequest,
-        role: Annotated[UserRole, Depends(require_operator)],
+        principal: Annotated[Principal, Depends(require_operator)],
     ) -> dict[str, object]:
+        approving = request_body.action == "approve"
+        if approving and not principal.role.at_least(UserRole.APPROVER):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Approving requires the approver role or higher.",
+            )
         with session_factory.begin() as session:
             decision = session.get(Decision, decision_id)
             if decision is None:
@@ -216,75 +433,86 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Decision not found.",
                 )
-            if request_body.action == "approve" and decision.status == "blocked":
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Blocked decisions cannot be approved.",
+            with step_span("decide", traceparent=decision.trace_parent,
+                           decision_id=decision.id, action=request_body.action):
+                if approving and decision.status == "blocked":
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Blocked decisions cannot be approved.",
+                    )
+                if approving and decision.proposer_sub == principal.sub:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="proposer cannot approve",
+                    )
+                actor_name = principal.sub
+                actor = session.query(User).filter_by(username=actor_name).one_or_none()
+                if actor is None:
+                    actor = User(
+                        username=actor_name,
+                        email=f"{sha256_hex(actor_name)[:32]}@identity.invalid",
+                        hashed_password="external-identity",
+                    )
+                    session.add(actor)
+                    session.flush()
+                approval = Approval(
+                    decision_id=decision.id,
+                    user_id=actor.id,
+                    approved=approving,
+                    reason_code=request_body.reason_code,
                 )
-            actor_name = f"development-{role.name.lower()}"
-            actor = session.query(User).filter_by(username=actor_name).one_or_none()
-            if actor is None:
-                actor = User(
-                    username=actor_name,
-                    email=f"{actor_name}@local.invalid",
-                    hashed_password="development-role-token",
-                )
-                session.add(actor)
+                session.add(approval)
                 session.flush()
-            approval = Approval(
-                decision_id=decision.id,
-                user_id=actor.id,
-                approved=request_body.action == "approve",
-            )
-            session.add(approval)
-            session.flush()
-            audit = AuditLog(
-                user_id=actor.id,
-                action=(
-                    "decision_approved" if request_body.action == "approve" else "decision_rejected"
-                ),
-                table_name="decisions",
-                record_id=str(decision.id),
-                change_data={
-                    "actor": role.name.lower(),
+                event = append_event(
+                    session,
+                    actor=actor_name,
+                    type="disposition_recorded",
+                    payload={
+                        "decision_id": decision.id,
+                        "approval_id": approval.id,
+                        "action": request_body.action,
+                        "reason_code": request_body.reason_code,
+                        "reason": request_body.reason,
+                        "record": record_ref(
+                            "approvals", approval.id, approval_record_sha256(approval)
+                        ),
+                    },
+                )
+                return {
+                    "decision_id": decision.id,
+                    "disposition_id": approval.id,
                     "action": request_body.action,
-                    "reason": request_body.reason,
-                },
-            )
-            session.add(audit)
-            session.flush()
+                    "reason_code": request_body.reason_code,
+                    "timestamp": event.ts,
+                }
+
+    if active_settings.environment == "demo":
+        app.include_router(demo_router(active_settings, limiter.limit(active_settings.rate_limit)))
+        if demo_clock is not None and active_settings.demo_reset_interval_min > 0:
+            app.state.demo_scheduler = start_reset_schedule(active_settings, demo_clock, reset_demo)
+
+    if active_settings.environment == "development":
+
+        @app.post("/api/v1/dev/token", tags=["development"])
+        @limiter.limit(active_settings.rate_limit)
+        async def dev_token(request: Request, request_body: DevTokenRequest) -> dict[str, object]:
+            """Development only: mint a signed token for any subject and role."""
             return {
-                "decision_id": decision.id,
-                "disposition_id": approval.id,
-                "action": request_body.action,
-                "timestamp": audit.timestamp.isoformat(),
+                "access_token": issue_dev_token(
+                    active_settings, request_body.sub, request_body.role
+                ),
+                "token_type": "bearer",
+                "expires_in": active_settings.dev_token_ttl_s,
             }
 
-    @app.get("/health", include_in_schema=False)
-    @limiter.limit(active_settings.rate_limit)
-    async def legacy_health(request: Request) -> dict[str, str]:
-        return {"status": "ok"}
-
-    @app.get("/scenario", include_in_schema=False)
-    @limiter.limit(active_settings.rate_limit)
-    async def legacy_scenario(request: Request, seed: int | None = None) -> dict[str, object]:
-        return cast(dict[str, object], generate_scenario(seed=seed).model_dump(mode="json"))
-
-    @app.post("/simulate", include_in_schema=False)
-    async def legacy_simulate(
+    @app.get("/api/v1/audit/verify", tags=["audit"])
+    async def verify_audit_chain(
         request: Request,
-        request_body: ScenarioDecisionRequest,
-        role: Annotated[UserRole, Depends(require_operator)],
-        engine: Literal["rule_based", "llm_rag"] = "rule_based",
+        principal: Annotated[Principal, Depends(require_viewer)],
     ) -> dict[str, object]:
-        scenario: Scenario = (
-            request_body.scenario or generate_scenario(seed=request_body.seed)
-        )
-        del role
-        result: DecisionResult = engines[engine].recommend(scenario)
-        return cast(dict[str, object], result.model_dump(mode="json"))
+        del principal
+        with session_factory() as session:
+            return verify_chain(session).as_dict()
 
     return app
 
-
-app = create_app()

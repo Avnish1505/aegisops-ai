@@ -1,25 +1,102 @@
-version: '3.8'
-
+# Lucknow monsoon-flood exercise on real data.
+#
+# One-time, before the first `docker compose up`:
+#   ./scripts/osrm_prepare.sh        # Geofabrik extract -> Lucknow clip -> OSRM graph (see script)
+#
+# Then `docker compose up --build`:
+#   console  http://localhost:5173   (Leaflet map on OpenStreetMap tiles)
+#   API      http://localhost:8000
+#   traces   http://localhost:6006   (Arize Phoenix; one trace per decision)
+# On start the API migrates PostgreSQL/PostGIS, imports Lucknow facilities from data/osm, stations
+# units, seeds the exercise and plans it once on OSRM road times. The worker polls NDMA SACHET,
+# USGS and GDACS. Without the prepared data the API falls back to a synthetic seed.
 services:
-  web:
+  db:
+    # Multi-arch (amd64 + arm64) build of the official docker-postgis images;
+    # postgis/postgis publishes amd64 only.
+    image: imresamu/postgis:16-3.5
+    environment:
+      - POSTGRES_USER=aegisops
+      - POSTGRES_PASSWORD=aegisops
+      - POSTGRES_DB=aegisops
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "aegisops", "-d", "aegisops"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:v6.0.0
+    command: osrm-routed --algorithm mld --max-table-size 1000 /data/lucknow.osrm
+    volumes:
+      - ./data/osrm:/data:ro
+    ports:
+      # Host port 5001: macOS AirPlay Receiver holds 5000. Containers use http://osrm:5000.
+      - "5001:5000"
+
+  phoenix:
+    # Self-hosted Arize Phoenix: OTLP/HTTP collector at :6006/v1/traces and the trace UI.
+    # Traces live in the container (not persisted); this is a research console, not ops.
+    image: arizephoenix/phoenix:version-20.16.0
+    ports:
+      - "6006:6006"
+
+  api:
     build: .
     ports:
       - "8000:8000"
-    environment:
+    environment: &app-environment
       - AEGISOPS_ENVIRONMENT=development
       - AEGISOPS_DEBUG=true
-      - AEGISOPS_CORS_ORIGINS=http://localhost:3000,http://localhost:5173
-      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
-      - RATE_LIMIT=100/minute
+      - AEGISOPS_CORS_ORIGINS=http://localhost:5173
+      - AEGISOPS_SECRET_KEY=${AEGISOPS_SECRET_KEY:-dev-secret-key-change-in-production}
+      - AEGISOPS_RATE_LIMIT=100/minute
+      - AEGISOPS_DATABASE_URL=postgresql+psycopg://aegisops:aegisops@db:5432/aegisops
+      - AEGISOPS_OSRM_URL=http://osrm:5000
+      - AEGISOPS_OTEL_ENDPOINT=http://phoenix:6006
+      # Optional: read from ./.env (gitignored). Without it the LLM endpoints return 503.
+      - AEGISOPS_LLM_API_KEY=${AEGISOPS_LLM_API_KEY:-}
+      - OSM_EXTRACT=/app/data/osm/lucknow.osm.pbf
     volumes:
-      - .:/app:cached
-      - /app/data  # Ensure the data directory is mounted as a volume for persistence
-    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+      - ./data/osm:/app/data/osm:ro
+    command: ["sh", "scripts/compose_api_start.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+      osrm:
+        condition: service_started
+      phoenix:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
 
-  # Optional: Add a service for the frontend if needed
-  # frontend:
-  #   build: ./frontend
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     - REACT_APP_API_URL=http://localhost:8000
+  worker:
+    build: .
+    environment: *app-environment
+    command: ["python", "-m", "aegisops.ingestion.worker"]
+    healthcheck:
+      disable: true  # no HTTP server; the image's API healthcheck does not apply
+    depends_on:
+      api:
+        condition: service_healthy  # the API has applied the migrations
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
+        VITE_DEV_AUTH: "true"
+    ports:
+      - "5173:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:

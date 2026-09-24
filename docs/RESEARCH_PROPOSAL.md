@@ -84,7 +84,7 @@ re-run and diffed across prompt revisions without code changes.
   `pytest tests/test_evaluation_harness.py tests/test_decision_engine.py
   tests/test_llm_decision_engine.py tests/test_security.py` — before being reported as valid.
 - **Primary metrics** (all already computed by existing tooling, none newly defined):
-  coverage/`advisory_confidence`, unmet-requirement count and unit total, safety-finding counts by
+  `coverage`, unmet-requirement count and unit total, safety-finding counts by
   severity, blocked rate, latency percentiles (p50/p95), and adversarial pass rate.
 - **Hard gate.** Any scenario where an engine's output fails
   `_validate_safety_contract` — missing human approval, a duplicated or invalid assignment — is a
