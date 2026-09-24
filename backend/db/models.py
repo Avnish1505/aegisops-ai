@@ -291,6 +291,36 @@ class IntakeReport(Base):
     __table_args__ = (Index("idx_intake_status", "status"),)
 
 
+class StudySession(Base):
+    """One participant's run of the user study (aegisops/study)."""
+
+    __tablename__ = "study_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    participant: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
+    participant_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class StudyTask(Base):
+    """One task in a session: which interface, which plan, what the right answer is."""
+
+    __tablename__ = "study_tasks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("study_sessions.id"), nullable=False)
+    order: Mapped[int] = mapped_column(Integer, nullable=False)
+    ui: Mapped[str] = mapped_column(String(16), nullable=False)
+    task_key: Mapped[str] = mapped_column(String(8), nullable=False)
+    injected_error: Mapped[str | None] = mapped_column(String(32))
+    expected_action: Mapped[str] = mapped_column(String(16), nullable=False)
+    expected_reason: Mapped[str | None] = mapped_column(String(64))
+    decision_id: Mapped[int] = mapped_column(ForeignKey("decisions.id"), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (Index("idx_study_task_session", "session_id", "order"),)
+
+
 class FeedPoll(Base):
     """One poll of a hazard feed by the worker, including failures, for feed health."""
 

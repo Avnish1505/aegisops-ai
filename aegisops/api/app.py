@@ -36,6 +36,7 @@ from aegisops.api.schemas import (
     ScenarioDecisionRequest,
     TranslateNoteRequest,
 )
+from aegisops.api.study_api import study_router
 from aegisops.application.decision_service import DecisionService
 from aegisops.application.roles import UserRole
 from aegisops.application.scenario_service import generate_scenario
@@ -218,6 +219,7 @@ def create_app(
             )
 
     app.include_router(intake_router(session_factory, reader, require_llm))
+    app.include_router(study_router(session_factory, travel))
 
     @app.post("/api/v1/constraints/translate", tags=["intake"])
     async def translate_constraint(
