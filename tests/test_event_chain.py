@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from auth_helpers import bearer
+from auth_helpers import REJECT, bearer
 from fastapi.testclient import TestClient
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -37,7 +37,7 @@ def _client_with_history(tmp_path: Path) -> tuple[TestClient, str]:
     client.post("/api/v1/decisions", json={"seed": 4})
     client.post(
         f"/api/v1/decisions/{first}/disposition",
-        json={"action": "reject", "reason": "Needs another look."},
+        json={**REJECT, "reason": "Needs another look."},
     )
     return client, url
 

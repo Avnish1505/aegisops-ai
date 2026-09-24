@@ -18,6 +18,7 @@ from aegisops.domain.models import (
     Citation,
     DecisionResult,
     Evidence,
+    Location,
     Resource,
     ResourceType,
     Scenario,
@@ -25,7 +26,7 @@ from aegisops.domain.models import (
 )
 from aegisops.infrastructure.retrieval_engine import RetrievalEngine
 from aegisops.planning.solver import SolverDecisionEngine, SolveResult, solve
-from aegisops.planning.travel import EuclideanProvider, TravelTimeMatrix
+from aegisops.planning.travel import StraightLineProvider, TravelTimeMatrix
 from aegisops.verification.models import TextDraft, VerificationPolicy, VerificationReport
 from aegisops.verification.verifier import verify
 
@@ -109,7 +110,9 @@ def _unit(
     return Resource(
         id=unit_id.replace("_", "-"),
         type=resource_type,
-        location=(rng.randint(0, 100), rng.randint(0, 100)),
+        location=Location(
+            lat=round(rng.uniform(26.78, 26.93), 5), lon=round(rng.uniform(80.87, 81.05), 5)
+        ),
         available=available,
     )
 
@@ -131,7 +134,7 @@ def _retriever() -> RetrievalEngine:
 @cache
 def clean_case(seed: int) -> FaultCase:
     scenario = _adjusted_scenario(seed)
-    matrix = EuclideanProvider().matrix(scenario)
+    matrix = StraightLineProvider().matrix(scenario)
     reference = solve(scenario, matrix)
     evidence = tuple(_retriever().retrieve_evidence("resource allocation capability"))
     cite = Citation(evidence_id=evidence[0].id, quote=_first_sentence(evidence[0]))

@@ -38,7 +38,7 @@ from aegisops.planning.objective import (
     plan_coverage,
     plan_objective,
 )
-from aegisops.planning.travel import EuclideanProvider, TravelTimeMatrix, TravelTimeProvider
+from aegisops.planning.travel import StraightLineProvider, TravelTimeMatrix, TravelTimeProvider
 
 # CP-SAT needs integer coefficients: weights and minutes are scaled to hundredths.
 SCALE = 100
@@ -195,7 +195,7 @@ class SolverDecisionEngine:
     def __init__(
         self, travel_provider: TravelTimeProvider | None = None, *, time_limit_s: float = 10.0
     ) -> None:
-        self._travel_provider = travel_provider or EuclideanProvider()
+        self._travel_provider = travel_provider or StraightLineProvider()
         self._time_limit_s = time_limit_s
 
     def recommend(

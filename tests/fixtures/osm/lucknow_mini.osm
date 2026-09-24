@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written test fixture: a square stand-in for the Lucknow district boundary, a few
+     facilities, and the nine exercise localities at their real OSM coordinates. -->
+<osm version="0.6" generator="aegisops-test-fixture">
+  <node id="1" version="1" lat="26.8" lon="80.9"/>
+  <node id="2" version="1" lat="26.8" lon="81.0"/>
+  <node id="3" version="1" lat="26.9" lon="81.0"/>
+  <node id="4" version="1" lat="26.9" lon="80.9"/>
+  <node id="201" version="1" lat="26.85" lon="80.95"><tag k="amenity" v="hospital"/><tag k="name" v="Inside Node Hospital"/><tag k="emergency" v="yes"/></node>
+  <node id="202" version="1" lat="27.5" lon="80.95"><tag k="amenity" v="hospital"/><tag k="name" v="Outside Hospital"/></node>
+  <node id="206" version="1" lat="26.88" lon="80.99"><tag k="healthcare" v="hospital"/><tag k="name" v="Healthcare Tag Hospital"/></node>
+  <node id="203" version="1" lat="26.855" lon="80.945"><tag k="amenity" v="police"/><tag k="name" v="Police A"/></node>
+  <node id="204" version="1" lat="26.87" lon="80.98"><tag k="amenity" v="police"/><tag k="name" v="Police B"/></node>
+  <node id="311" version="1" lat="26.86" lon="80.93"/>
+  <node id="312" version="1" lat="26.86" lon="80.932"/>
+  <node id="313" version="1" lat="26.862" lon="80.932"/>
+  <node id="314" version="1" lat="26.862" lon="80.93"/>
+  <node id="321" version="1" lat="26.83" lon="80.92"/>
+  <node id="322" version="1" lat="26.83" lon="80.922"/>
+  <node id="323" version="1" lat="26.832" lon="80.922"/>
+  <node id="324" version="1" lat="26.832" lon="80.92"/>
+  <node id="401" version="1" lat="26.8334969" lon="80.9264143"><tag k="place" v="suburb"/><tag k="name" v="Charbagh"/></node>
+  <node id="402" version="1" lat="26.854809" lon="80.9447594"><tag k="place" v="suburb"/><tag k="name" v="Hazratganj"/></node>
+  <node id="403" version="1" lat="26.8487" lon="80.927"><tag k="place" v="suburb"/><tag k="name" v="Aminabad"/></node>
+  <node id="404" version="1" lat="26.8677148" lon="80.9042142"><tag k="place" v="suburb"/><tag k="name" v="Chowk"/></node>
+  <node id="405" version="1" lat="26.90515" lon="80.9479913"><tag k="place" v="suburb"/><tag k="name" v="Aliganj"/></node>
+  <node id="406" version="1" lat="26.8528761" lon="80.9988505"><tag k="place" v="suburb"/><tag k="name" v="Gomti Nagar"/></node>
+  <node id="407" version="1" lat="26.8823182" lon="80.9900344"><tag k="place" v="suburb"/><tag k="name" v="Indira Nagar"/></node>
+  <node id="408" version="1" lat="26.8139516" lon="80.9077973"><tag k="place" v="suburb"/><tag k="name" v="Alambagh"/></node>
+  <node id="409" version="1" lat="26.8563927" lon="80.9284775"><tag k="place" v="suburb"/><tag k="name" v="Qaisarbagh"/></node>
+  <way id="101" version="1"><nd ref="1"/><nd ref="2"/></way>
+  <way id="102" version="1"><nd ref="2"/><nd ref="3"/></way>
+  <way id="103" version="1"><nd ref="3"/><nd ref="4"/></way>
+  <way id="104" version="1"><nd ref="4"/><nd ref="1"/></way>
+  <way id="301" version="1"><nd ref="311"/><nd ref="312"/><nd ref="313"/><nd ref="314"/><nd ref="311"/><tag k="amenity" v="hospital"/><tag k="name" v="Way Hospital"/><tag k="building" v="hospital"/></way>
+  <way id="302" version="1"><nd ref="321"/><nd ref="322"/><nd ref="323"/><nd ref="324"/><nd ref="321"/><tag k="amenity" v="fire_station"/><tag k="name" v="Test Fire Station"/></way>
+  <relation id="1959018" version="1"><member type="way" ref="101" role="outer"/><member type="way" ref="102" role="outer"/><member type="way" ref="103" role="outer"/><member type="way" ref="104" role="outer"/><tag k="type" v="boundary"/><tag k="boundary" v="administrative"/><tag k="admin_level" v="5"/><tag k="name" v="Lucknow"/></relation>
+</osm>

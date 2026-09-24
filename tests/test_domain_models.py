@@ -11,6 +11,7 @@ from aegisops.domain.models import (
     Evidence,
     Incident,
     IncidentType,
+    Location,
     Resource,
     ResourceType,
     SafetyFinding,
@@ -170,7 +171,7 @@ def test_incident_valid():
         id="inc1",
         type=IncidentType.MEDICAL,
         severity=Severity.MEDIUM,
-        location=(10.0, 20.0),
+        location=Location(lat=26.81, lon=80.92),
         people_affected=10,
         reported_at_min=0,
         resources_needed={ResourceType.AMBULANCE: 2},
@@ -182,7 +183,7 @@ def test_resource_valid():
     resource = Resource(
         id="res1",
         type=ResourceType.AMBULANCE,
-        location=(10.0, 20.0),
+        location=Location(lat=26.81, lon=80.92),
     )
     assert resource.id == "res1"
 
@@ -192,7 +193,7 @@ def test_scenario_valid():
         id="inc1",
         type=IncidentType.MEDICAL,
         severity=Severity.MEDIUM,
-        location=(10.0, 20.0),
+        location=Location(lat=26.81, lon=80.92),
         people_affected=10,
         reported_at_min=0,
         resources_needed={ResourceType.AMBULANCE: 2},
@@ -200,7 +201,7 @@ def test_scenario_valid():
     resource = Resource(
         id="res1",
         type=ResourceType.AMBULANCE,
-        location=(30.0, 40.0),
+        location=Location(lat=26.83, lon=80.94),
     )
     scenario = Scenario(
         scenario_id="sc1",

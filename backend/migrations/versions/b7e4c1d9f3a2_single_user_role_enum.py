@@ -22,6 +22,10 @@ CURRENT = sa.Enum('VIEWER', 'OPERATOR', 'APPROVER', 'ADMIN', name='userrole')
 
 def upgrade() -> None:
     """Roles now come from aegisops.application.roles.UserRole, which adds APPROVER."""
+    if op.get_bind().dialect.name == "postgresql":
+        # PostgreSQL has a native enum type; add the value to it in place.
+        op.execute("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'APPROVER'")
+        return
     with op.batch_alter_table('roles') as batch_op:
         batch_op.alter_column(
             'name', existing_type=PREVIOUS, type_=CURRENT, existing_nullable=False
@@ -30,6 +34,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Restore the three-role enum; delete any APPROVER role rows first."""
+    if op.get_bind().dialect.name == "postgresql":
+        # PostgreSQL cannot drop an enum value; the extra value is harmless.
+        return
     with op.batch_alter_table('roles') as batch_op:
         batch_op.alter_column(
             'name', existing_type=CURRENT, type_=PREVIOUS, existing_nullable=False

@@ -31,6 +31,39 @@ Install whichever platform CLI you're targeting:
 Confirm the backend runs locally before deploying: `uvicorn backend.main:app --port 8000`
 and `curl http://localhost:8000/health/live`.
 
+## Public demo (Railway API + OSRM, Vercel console)
+
+The demo is a resettable exercise sandbox, not a service: two fixed identities
+(`demo-operator`, `demo-approver`) can triage, plan, approve and reject inside the Lucknow
+exercise; every hour everything visitors changed is deleted and the exercise re-seeded
+(`backend/demo_reset.py`); no model is configured, so nothing is spent per visitor.
+
+**Railway, service `osrm`.** Config file `deploy/osrm/railway.json` (builds
+`deploy/osrm/Dockerfile`: the road graph from the committed Lucknow extract
+`deploy/osm/lucknow.osm.pbf`, ODbL). No variables needed; it listens on `$PORT`.
+
+**Railway, service `api`.** Config file `railway.json` (the repository `Dockerfile`, started by
+`scripts/demo_start.sh`: migrate, import facilities, reset, serve one process). Variables:
+
+| Variable | Value |
+| --- | --- |
+| `AEGISOPS_ENVIRONMENT` | `demo` |
+| `AEGISOPS_SECRET_KEY` | a random 32+ character secret (the API refuses the development key) |
+| `AEGISOPS_OSRM_URL` | `http://osrm.railway.internal:<osrm PORT>` (private network) |
+| `AEGISOPS_CORS_ORIGINS` | the Vercel URL, e.g. `https://aegisops.vercel.app` |
+| `AEGISOPS_DATABASE_URL` | leave the image default (SQLite in the container: the sandbox resets anyway) |
+
+Do not set `AEGISOPS_LLM_API_KEY` on the demo. Triage shows readings recorded once with a real
+model (`scripts/record_demo_reads.py` writes `backend/demo_reads.json`); reports without a
+recorded reading are shown as not read.
+
+**Vercel, the console.** `vercel.json` (Vite static build, SPA rewrites). Build variables:
+`VITE_API_BASE_URL` = the Railway API URL, `VITE_AUTH_MODE` = `demo`.
+
+**Check after deploying:** `/health/ready` is 200; `POST /api/v1/demo/token {"sub":
+"demo-operator"}` returns a token; plan 1's `travel_times.provider` is `osrm-driving` and not
+degraded; the console loads in a fresh browser with no console errors.
+
 ## Environment
 
 All runtime configuration is via environment variables, defined in

@@ -13,7 +13,12 @@ from backend.db.models import Decision
 
 
 def record_decision(
-    session: Session, scenario: Scenario, outcome: DecisionOutcome, proposer: str
+    session: Session,
+    scenario: Scenario,
+    outcome: DecisionOutcome,
+    proposer: str,
+    trace_parent: str | None = None,
+    constraint_sources: list[dict[str, object] | None] | None = None,
 ) -> Decision:
     """Store the full decision record and append its creation and verification events."""
     result = outcome.result
@@ -33,9 +38,11 @@ def record_decision(
         prompt_version=result.prompt_version,
         model_version=result.model_version,
         proposer_sub=proposer,
+        trace_parent=trace_parent,
         verification=outcome.verification.model_dump(mode="json"),
         drafts=[draft.model_dump(mode="json") for draft in outcome.drafts],
         constraints=[item.model_dump(mode="json") for item in outcome.constraints],
+        constraint_sources=constraint_sources or [None] * len(outcome.constraints),
         travel_times=outcome.travel_times.model_dump(mode="json"),
         objective=plan_objective(
             result.assignments,
@@ -103,9 +110,12 @@ def serialize_decision(decision: Decision) -> dict[str, object]:
         "prompt_version": decision.prompt_version,
         "model_version": decision.model_version,
         "proposer_sub": decision.proposer_sub,
+        "traceparent": decision.trace_parent,
         "verification": decision.verification,
         "drafts": decision.drafts,
         "constraints": decision.constraints,
+        "constraint_sources": decision.constraint_sources
+        or [None] * len(decision.constraints or []),
         "objective": decision.objective,
         "reference_objective": decision.reference_objective,
         "solve_status": decision.solve_status,
@@ -113,11 +123,13 @@ def serialize_decision(decision: Decision) -> dict[str, object]:
         "travel_times": decision.travel_times,
         "travel_provider": travel.get("provider"),
         "travel_degraded": travel.get("degraded"),
+        "travel_degraded_reason": travel.get("degraded_reason"),
         "created_at": decision.created_at.isoformat(),
         "approvals": [
             {
                 "disposition_id": approval.id,
                 "action": "approve" if approval.approved else "reject",
+                "reason_code": approval.reason_code,
                 "actor": approval.user.username,
                 "timestamp": approval.commented_at.isoformat(),
             }

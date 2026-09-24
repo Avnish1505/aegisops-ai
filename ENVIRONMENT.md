@@ -17,6 +17,15 @@ names are case-insensitive. Unprefixed names such as `SECRET_KEY` or `DATABASE_U
 | `AEGISOPS_JWT_ALGORITHM` | `HS256` or `RS256` | `HS256` | No |
 | `AEGISOPS_JWT_JWKS_URL` | OIDC JWKS URL; required for `RS256` | — | With RS256 |
 | `AEGISOPS_JWT_ISSUER` / `AEGISOPS_JWT_AUDIENCE` | Required `iss` / `aud` claims when set | — | No |
+| `AEGISOPS_OSRM_URL` | OSRM base URL for road travel times (e.g. `http://osrm:5000`); unset uses straight-line estimates | — | No |
+| `AEGISOPS_INGEST_SACHET_RSS_URL` / `AEGISOPS_INGEST_USGS_URL` / `AEGISOPS_INGEST_GDACS_URL` | Feed URLs polled by `python -m aegisops.ingestion.worker` | the public feeds | No |
+| `AEGISOPS_INGEST_*_INTERVAL_MIN` | Poll intervals in minutes (SACHET, USGS, GDACS) | 5, 5, 15 | No |
+| `AEGISOPS_LLM_API_KEY` (or `NVIDIA_API_KEY`) | Key for the OpenAI-compatible LLM endpoint | — | For live LLM calls |
+| `AEGISOPS_LLM_BASE_URL` / `AEGISOPS_LLM_MODEL` | Endpoint and model | NVIDIA NIM, `nvidia/llama-3.1-nemotron-70b-instruct` | No |
+| `AEGISOPS_LLM_PRICE_IN_USD_PER_MTOK` / `..._OUT_...` | Prices for cost estimates (reference: OpenRouter Llama-3.3-70B list price, 2026-09-23) | 0.10 / 0.32 | No |
+| `AEGISOPS_LLM_CASSETTE_MODE` / `AEGISOPS_LLM_CASSETTE_DIR` | `record` or `replay` LLM HTTP exchanges | `off` | No |
+| `AEGISOPS_OTEL_ENDPOINT` (or `OTEL_EXPORTER_OTLP_ENDPOINT`) | OTLP/HTTP base URL for traces (compose: Phoenix at `http://phoenix:6006`) | unset (no export) | No |
+| `AEGISOPS_OTEL_SERVICE_NAME` | `service.name` on exported spans | `aegisops-api` | No |
 | `AEGISOPS_JWT_ROLE_CLAIM` | Claim holding the role (string or list) | `role` | No |
 | `AEGISOPS_RATE_LIMIT` | Rate limit for API endpoints (format: `X/minute` or `X/second`) | `100/minute` | No |
 | `AEGISOPS_DATABASE_URL` | Database connection string (SQLite by default) | `sqlite:///./aegisops.db` | No |
@@ -55,14 +64,16 @@ docker run -p 8000:8000 \
 
 ### Docker Compose
 
-`docker compose up` builds and starts the API (http://localhost:8000) and the operations console
-(http://localhost:5173, built by `Dockerfile.ui`). On first start the API applies migrations and
-records one demo decision for synthetic seed 42 (`backend/seed.py`), readable at
-`GET /api/v1/decisions/1`. Data lives in the `aegisops-data` volume.
+Run `./scripts/osrm_prepare.sh` once, then `docker compose up --build`: PostgreSQL + PostGIS
+(`db`), OSRM (`osrm`; host port 5001, since macOS AirPlay holds 5000), Arize Phoenix for traces
+(port 6006), the API (port 8000), the feed worker and the console (port 5173, built by
+`Dockerfile.ui`). Put `AEGISOPS_LLM_API_KEY` in `./.env` (gitignored) to enable the LLM steps. The API service migrates, imports facilities from `data/osm`, seeds
+the Lucknow exercise and plans it once (`scripts/compose_api_start.sh`). Data lives in the
+`pgdata` volume.
 
 ```bash
 docker compose up --build   # start
-docker compose down -v      # stop and delete the data volume
+docker compose down -v      # stop and delete the database volume
 ```
 
 ### Railway

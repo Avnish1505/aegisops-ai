@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?xml-stylesheet title="XSL_formatting" type="text/xsl" href="feed.xsl"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>All India: CAP Disaster Alert Feeds</title>
+    <description>CAP Integrated Alert System Warning Updates</description>
+    <language>en</language>
+    <link>https://sachet.ndma.gov.in/cap_public_website/rss/rss_india.xml</link>
+    <atom:link href="https://sachet.ndma.gov.in/cap_public_website/rss/rss_india.xml" rel="self" type="application/rss+xml"/>
+    <copyright>public domain</copyright>
+    <pubDate>Tue, 15 Sep 2026 09:02:00 GMT</pubDate>
+    <item>
+      <title>आपल्या जिल्ह्यामध्ये काही ठिकाणी विजांच्या कडकडाट होण्याची शक्यता आहे. स्थानिक प्रशासनाने दिलेल्या सूचनांचे पालन करा आणि आवश्यक असल्याशिवाय घराबाहेर पडू नका. सुरक्षित आणि सतर्क रहा. SEOC मुंबई</title>
+      <description/>
+      <category>Met</category>
+      <link>https://sachet.ndma.gov.in/cap_public_website/FetchXMLFile?identifier=1790168189341029</link>
+      <author>controlroom@ndma.gov.in (Maharashtra SDMA)</author>
+      <guid isPermaLink="false">1790168189341029</guid>
+      <pubDate>Wed, 23 Sep 2026 12:56:56 GMT</pubDate>
+    </item>
+    <item>
+      <title>River Tista at Mekhliganj in Coochbehar district of West Bengal continues to flow in above normal flood situation at 6:00 pm today.</title>
+      <description/>
+      <category>Met</category>
+      <link>https://sachet.ndma.gov.in/cap_public_website/FetchXMLFile?identifier=1790166906028017</link>
+      <author>controlroom@ndma.gov.in (CWC)</author>
+      <guid isPermaLink="false">1790166906028017</guid>
+      <pubDate>Wed, 23 Sep 2026 12:36:20 GMT</pubDate>
+    </item>
+    <item>
+      <title>Light Thunderstorm with surface wind is very likely to occur at isolated places over Dadra And Nagar Haveli, Daman, Anand, Bharuch, Chhotaudepur, Dahod, Narmada, Navsari, Panch Mahals, Surat, Tapi, The Dangs, Vadodara, Valsad in next 24 hours.</title>
+      <description/>
+      <category>Met</category>
+      <link>https://sachet.ndma.gov.in/cap_public_website/FetchXMLFile?identifier=1790152271184020</link>
+      <author>controlroom@ndma.gov.in (IMD Ahmedabad)</author>
+      <guid isPermaLink="false">1790152271184020</guid>
+      <pubDate>Wed, 23 Sep 2026 11:09:22 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

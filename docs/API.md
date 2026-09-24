@@ -7,10 +7,16 @@ The canonical interactive OpenAPI definition is served at `/docs` in development
 | GET | `/health/live` | Process liveness probe |
 | GET | `/health/ready` | Application readiness probe |
 | GET | `/api/v1/scenarios?seed=42` | Generate a reproducible synthetic scenario |
+| GET | `/api/v1/exercises` | List saved exercises (e.g. the Lucknow monsoon exercise) |
+| GET | `/api/v1/alerts?source=&limit=` | Latest ingested hazard alerts (SACHET, USGS, GDACS), without raw payloads |
+| GET | `/api/v1/exercises/{id}` | A saved exercise's scenario |
 | POST | `/api/v1/decisions?engine=solver` | Produce a verified, human-gated plan (`solver` default; `rule_based`, `llm_rag`) |
 | GET | `/api/v1/decisions/{id}` | Read a stored decision (scenario, plan, findings, evidence, approvals) |
 | POST | `/api/v1/decisions/{id}/disposition` | Record an approve/reject with a reason |
 | GET | `/api/v1/audit/verify` | Walk the hash-chained event log; report the first broken link |
+
+Every location is WGS84 decimal degrees, `{"lat": 26.85, "lon": 80.95}`; resources carry
+`speed_kmh`, used only by the straight-line fallback when no road network is available.
 
 `POST /api/v1/decisions` accepts either a typed `scenario` or a `seed`; omitting both generates a
 non-repeatable synthetic scenario, plus optional typed `constraints` (`reserve`, `exclude_unit`,

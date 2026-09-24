@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC malformed alert: <identifier> is required by CAP 1.2 and missing here. -->
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <sender>test-sender@example.invalid</sender>
+  <sent>2026-09-23T06:00:00+05:30</sent>
+  <status>Actual</status>
+  <msgType>Alert</msgType>
+  <scope>Public</scope>
+</alert>

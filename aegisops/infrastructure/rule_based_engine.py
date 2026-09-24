@@ -16,7 +16,7 @@ from aegisops.domain.models import (
 )
 from aegisops.domain.policy import evaluate_safety_gates, priority_score, travel_minutes
 from aegisops.planning.constraints import PlanningConstraint, excluded_unit_ids
-from aegisops.planning.travel import EuclideanProvider, TravelTimeMatrix
+from aegisops.planning.travel import StraightLineProvider, TravelTimeMatrix
 
 
 class RuleBasedDecisionEngine:
@@ -35,7 +35,7 @@ class RuleBasedDecisionEngine:
         constraints: Sequence[PlanningConstraint] = (),
     ) -> DecisionResult:
         """Greedy baseline. Honours ExcludeUnit; ignores reserves and priority boosts."""
-        matrix = travel_times or EuclideanProvider().matrix(scenario)
+        matrix = travel_times or StraightLineProvider().matrix(scenario)
         excluded = excluded_unit_ids(constraints)
         available = {
             resource.id: resource
@@ -99,7 +99,7 @@ class RuleBasedDecisionEngine:
     def _minutes(matrix: TravelTimeMatrix, resource: Resource, incident: Incident) -> float:
         minutes = matrix.get(resource.id, incident.id)
         if minutes is None:
-            return travel_minutes(resource.location, incident.location, resource.eta_speed)
+            return travel_minutes(resource.location, incident.location, resource.speed_kmh)
         return minutes
 
     @classmethod

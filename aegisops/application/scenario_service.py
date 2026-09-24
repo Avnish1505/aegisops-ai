@@ -8,6 +8,7 @@ import uuid
 from aegisops.domain.models import (
     Incident,
     IncidentType,
+    Location,
     Resource,
     ResourceType,
     Scenario,
@@ -18,9 +19,27 @@ RESOURCE_REQUIREMENTS: dict[IncidentType, dict[ResourceType, int]] = {
     IncidentType.MEDICAL: {ResourceType.AMBULANCE: 1},
     IncidentType.FIRE: {ResourceType.FIRE_UNIT: 2, ResourceType.AMBULANCE: 1},
     IncidentType.STRUCTURAL_COLLAPSE: {ResourceType.RESCUE_TEAM: 2, ResourceType.AMBULANCE: 2},
-    IncidentType.FLOOD: {ResourceType.RESCUE_TEAM: 1, ResourceType.AMBULANCE: 1},
+    IncidentType.FLOOD: {ResourceType.BOAT: 1, ResourceType.RESCUE_TEAM: 1},
     IncidentType.HAZMAT: {ResourceType.HAZMAT_UNIT: 1, ResourceType.FIRE_UNIT: 1},
 }
+
+# Synthetic points fall inside urban Lucknow (WGS84). They are random, not real addresses.
+LUCKNOW_URBAN_BOUNDS = (26.78, 80.87, 26.93, 81.05)  # min_lat, min_lon, max_lat, max_lon
+TYPICAL_SPEED_KMH: dict[ResourceType, float] = {
+    ResourceType.AMBULANCE: 30.0,
+    ResourceType.FIRE_UNIT: 25.0,
+    ResourceType.RESCUE_TEAM: 25.0,
+    ResourceType.HAZMAT_UNIT: 25.0,
+    ResourceType.BOAT: 20.0,  # towed on a trailer by road
+}
+
+
+def _point(generator: random.Random) -> Location:
+    min_lat, min_lon, max_lat, max_lon = LUCKNOW_URBAN_BOUNDS
+    return Location(
+        lat=round(generator.uniform(min_lat, max_lat), 5),
+        lon=round(generator.uniform(min_lon, max_lon), 5),
+    )
 
 
 def generate_scenario(seed: int | None = None, num_incidents: int = 6) -> Scenario:
@@ -42,7 +61,7 @@ def generate_scenario(seed: int | None = None, num_incidents: int = 6) -> Scenar
                 id=stable_id("INC", index),
                 type=incident_type,
                 severity=severity,
-                location=(generator.randint(0, 100), generator.randint(0, 100)),
+                location=_point(generator),
                 people_affected=generator.randint(1, 40),
                 reported_at_min=generator.randint(0, 60),
                 resources_needed=RESOURCE_REQUIREMENTS[incident_type],
@@ -52,12 +71,14 @@ def generate_scenario(seed: int | None = None, num_incidents: int = 6) -> Scenar
     resources: list[Resource] = []
     resource_types = [ResourceType.AMBULANCE] * 4 + [ResourceType.FIRE_UNIT] * 3
     resource_types += [ResourceType.RESCUE_TEAM] * 2 + [ResourceType.HAZMAT_UNIT]
+    resource_types += [ResourceType.BOAT] * 2
     for index, resource_type in enumerate(resource_types):
         resources.append(
             Resource(
                 id=stable_id("RES", index),
                 type=resource_type,
-                location=(generator.randint(0, 100), generator.randint(0, 100)),
+                location=_point(generator),
+                speed_kmh=TYPICAL_SPEED_KMH[resource_type],
             )
         )
 

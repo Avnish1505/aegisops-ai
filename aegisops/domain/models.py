@@ -30,9 +30,9 @@ class ResourceType(StrEnum):
     FIRE_UNIT = "fire_unit"
     RESCUE_TEAM = "rescue_team"
     HAZMAT_UNIT = "hazmat_unit"
+    BOAT = "boat"
 
 
-Coordinate = Annotated[tuple[float, float], Field(min_length=2, max_length=2)]
 
 
 class DomainModel(BaseModel):
@@ -41,11 +41,18 @@ class DomainModel(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
+class Location(DomainModel):
+    """A WGS84 position in decimal degrees. Serialised as {"lat": ..., "lon": ...}."""
+
+    lat: Annotated[float, Field(ge=-90, le=90)]
+    lon: Annotated[float, Field(ge=-180, le=180)]
+
+
 class Incident(DomainModel):
     id: Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")]
     type: IncidentType
     severity: Severity
-    location: Coordinate
+    location: Location
     people_affected: Annotated[int, Field(ge=0, le=1_000_000)]
     reported_at_min: Annotated[int, Field(ge=0, le=1_000_000)]
     resources_needed: dict[ResourceType, Annotated[int, Field(ge=1, le=100)]]
@@ -66,9 +73,10 @@ class Incident(DomainModel):
 class Resource(DomainModel):
     id: Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")]
     type: ResourceType
-    location: Coordinate
+    location: Location
     available: bool = True
-    eta_speed: Annotated[float, Field(gt=0, le=1_000)] = 1.0
+    # Average road speed, used only by the straight-line fallback when no road network is up.
+    speed_kmh: Annotated[float, Field(gt=0, le=200)] = 30.0
 
 
 class Scenario(DomainModel):

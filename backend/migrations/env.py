@@ -13,11 +13,17 @@ config = context.config
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Keep loggers created before migrations (the app runs Alembic in-process) working.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
 target_metadata = Base.metadata
+
+
+def include_object(obj, name, type_, reflected, compare_to):  # type: ignore[no-untyped-def]
+    """Ignore tables we don't own (PostGIS's spatial_ref_sys, tiger/topology) in autogenerate."""
+    return not (type_ == "table" and reflected and compare_to is None)
 
 # The database URL comes from Settings (AEGISOPS_DATABASE_URL) so the app and its migrations
 # always target the same database. Callers such as tests may still set sqlalchemy.url
@@ -67,7 +73,9 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
         )
 
         with context.begin_transaction():

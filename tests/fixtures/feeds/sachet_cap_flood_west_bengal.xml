@@ -1,0 +1,38 @@
+<cap:alert xmlns:cap="urn:oasis:names:tc:emergency:cap:1.2">
+<cap:identifier>IN-1790166906028017_17</cap:identifier>
+<cap:sender>West-Bengal-SDMA</cap:sender>
+<cap:sent>2026-09-23T18:06:19+05:30</cap:sent>
+<cap:status>Actual</cap:status>
+<cap:msgType>Update</cap:msgType>
+<cap:scope>Public</cap:scope>
+<cap:restriction/>
+<cap:addresses/>
+<cap:note/>
+<cap:references>CWC,IN-1790166906028017_5,2026-09-23T18:02:34+05:30</cap:references>
+<cap:incidents/>
+<cap:info>
+<cap:language>en-IN</cap:language>
+<cap:category>Met</cap:category>
+<cap:event>Flood</cap:event>
+<cap:urgency>Future</cap:urgency>
+<cap:severity>Moderate</cap:severity>
+<cap:certainty>Likely</cap:certainty>
+<cap:audience>1</cap:audience>
+<cap:effective>2026-09-23T18:00:00+05:30</cap:effective>
+<cap:onset>2026-09-23T18:06:19+05:30</cap:onset>
+<cap:expires>2026-09-24T00:00:00+05:30</cap:expires>
+<cap:headline>River Tista at Mekhliganj in Coochbehar district of West Bengal continues to flow in above normal flood situation at 6:00 pm today.</cap:headline>
+<cap:description>River Tista at Mekhliganj in Coochbehar district of West Bengal continues to flow in above normal flood situation at 6:00 pm today. At 6:00 pm, it was flowing at a level of 65.78 m with steady trend which is 0.33 m above its Warning Level of 65.45 m and 0.17 m below its Danger Level of 65.95 m.</cap:description>
+<cap:instruction/>
+<cap:contact/>
+<cap:parameter>
+<cap:valueName>Polygon URL</cap:valueName>
+<cap:value>https://sachet.ndma.gov.in/cap_public_website/FetchPolygonXMLFile?identifier=1790166906028017</cap:value>
+</cap:parameter>
+<cap:area>
+<cap:areaDesc>Tista, Mekhliganj, Coochbehar, West Bengal</cap:areaDesc>
+<cap:altitude>26.33</cap:altitude>
+<cap:ceiling>88.85</cap:ceiling>
+</cap:area>
+</cap:info>
+</cap:alert>

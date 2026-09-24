@@ -1,0 +1,246 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "bbox": [
+    76.6455,
+    9.6287,
+    76.6455,
+    9.6287
+   ],
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     76.6455,
+     9.6287
+    ]
+   },
+   "properties": {
+    "eventtype": "FL",
+    "eventid": 1104121,
+    "episodeid": 16,
+    "eventname": "",
+    "glide": "FL-2026-000165-IND",
+    "name": "Flood in India",
+    "description": "Flood in India",
+    "htmldescription": "Orange Flood in India from: 09 Aug 2026 01 to: 22 Sep 2026 01.",
+    "icon": "https://www.gdacs.org/images/gdacs_icons/maps/Green/FL.png",
+    "iconoverall": "https://www.gdacs.org/images/gdacs_icons/maps/Orange/FL.png",
+    "url": {
+     "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=FL&eventid=1104121&episodeid=16",
+     "report": "https://www.gdacs.org/report.aspx?eventid=1104121&episodeid=16&eventtype=FL",
+     "details": "https://www.gdacs.org/gdacsapi/api/events/geteventdata?eventtype=FL&eventid=1104121"
+    },
+    "alertlevel": "Orange",
+    "alertscore": 2,
+    "episodealertlevel": "Green",
+    "episodealertscore": 0.5,
+    "istemporary": "false",
+    "iscurrent": "true",
+    "country": "India",
+    "fromdate": "2026-08-09T01:00:00",
+    "todate": "2026-09-22T01:00:00",
+    "datemodified": "2026-09-22T06:28:10",
+    "iso3": "IND",
+    "source": "GLOFAS",
+    "sourceid": "",
+    "polygonlabel": "Centroid",
+    "Class": "Point_Centroid",
+    "affectedcountries": [
+     {
+      "iso2": "IN",
+      "iso3": "IND",
+      "countryname": "India"
+     }
+    ],
+    "severitydata": {
+     "severity": 0.0,
+     "severitytext": "Magnitude 0 ",
+     "severityunit": ""
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "bbox": [
+    76.6203,
+    31.3678,
+    76.6203,
+    31.3678
+   ],
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     76.6203,
+     31.3678
+    ]
+   },
+   "properties": {
+    "eventtype": "FL",
+    "eventid": 1103434,
+    "episodeid": 26,
+    "eventname": "",
+    "glide": "FL-2025-000171-IND",
+    "name": "Flood in India",
+    "description": "Flood in India",
+    "htmldescription": "Orange Flood in India from: 16 Aug 2025 01 to: 09 Oct 2025 01.",
+    "icon": "https://www.gdacs.org/images/gdacs_icons/maps/Green/FL.png",
+    "iconoverall": "https://www.gdacs.org/images/gdacs_icons/maps/Orange/FL.png",
+    "url": {
+     "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=FL&eventid=1103434&episodeid=26",
+     "report": "https://www.gdacs.org/report.aspx?eventid=1103434&episodeid=26&eventtype=FL",
+     "details": "https://www.gdacs.org/gdacsapi/api/events/geteventdata?eventtype=FL&eventid=1103434"
+    },
+    "alertlevel": "Orange",
+    "alertscore": 2,
+    "episodealertlevel": "Green",
+    "episodealertscore": 0.5,
+    "istemporary": "false",
+    "iscurrent": "false",
+    "country": "India",
+    "fromdate": "2025-08-16T01:00:00",
+    "todate": "2025-10-09T01:00:00",
+    "datemodified": "2025-10-09T21:45:03",
+    "iso3": "IND",
+    "source": "GLOFAS",
+    "sourceid": "",
+    "polygonlabel": "Centroid",
+    "Class": "Point_Centroid",
+    "affectedcountries": [
+     {
+      "iso2": "IN",
+      "iso3": "IND",
+      "countryname": "India"
+     }
+    ],
+    "severitydata": {
+     "severity": 0.0,
+     "severitytext": "Magnitude 0 ",
+     "severityunit": ""
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "bbox": [
+    102.5,
+    30.5,
+    102.5,
+    30.5
+   ],
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     102.5,
+     30.5
+    ]
+   },
+   "properties": {
+    "eventtype": "FL",
+    "eventid": 1104081,
+    "episodeid": 19,
+    "eventname": "",
+    "glide": "FL-2026-000148-CHN",
+    "name": "Flood in China",
+    "description": "Flood in China",
+    "htmldescription": "Orange Flood in China from: 31 Jul 2026 01 to: 21 Sep 2026 01.",
+    "icon": "https://www.gdacs.org/images/gdacs_icons/maps/Green/FL.png",
+    "iconoverall": "https://www.gdacs.org/images/gdacs_icons/maps/Orange/FL.png",
+    "url": {
+     "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=FL&eventid=1104081&episodeid=19",
+     "report": "https://www.gdacs.org/report.aspx?eventid=1104081&episodeid=19&eventtype=FL",
+     "details": "https://www.gdacs.org/gdacsapi/api/events/geteventdata?eventtype=FL&eventid=1104081"
+    },
+    "alertlevel": "Orange",
+    "alertscore": 2,
+    "episodealertlevel": "Green",
+    "episodealertscore": 0.5,
+    "istemporary": "false",
+    "iscurrent": "true",
+    "country": "China",
+    "fromdate": "2026-07-31T01:00:00",
+    "todate": "2026-09-21T01:00:00",
+    "datemodified": "2026-09-21T06:38:17",
+    "iso3": "CHN",
+    "source": "GLOFAS",
+    "sourceid": "",
+    "polygonlabel": "Centroid",
+    "Class": "Point_Centroid",
+    "affectedcountries": [
+     {
+      "iso2": "CN",
+      "iso3": "CHN",
+      "countryname": "China"
+     }
+    ],
+    "severitydata": {
+     "severity": 0.0,
+     "severitytext": "Magnitude 0 ",
+     "severityunit": ""
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "bbox": [
+    48.741,
+    -16.837,
+    48.741,
+    -16.837
+   ],
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     48.741,
+     -16.837
+    ]
+   },
+   "properties": {
+    "eventtype": "DR",
+    "eventid": 1018431,
+    "episodeid": 15,
+    "eventname": "Madagascar-2026",
+    "glide": "DR-2025-000238-MDG",
+    "name": "Drought in Madagascar",
+    "description": "Drought in Madagascar",
+    "htmldescription": "Orange Drought in Madagascar from: 21 Nov 2025  to: 21 Sep 2026 .",
+    "icon": "https://www.gdacs.org/images/gdacs_icons/maps/Orange/DR.png",
+    "iconoverall": "https://www.gdacs.org/images/gdacs_icons/maps/Orange/DR.png",
+    "url": {
+     "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=DR&eventid=1018431&episodeid=15",
+     "report": "https://www.gdacs.org/report.aspx?eventid=1018431&episodeid=15&eventtype=DR",
+     "details": "https://www.gdacs.org/gdacsapi/api/events/geteventdata?eventtype=DR&eventid=1018431"
+    },
+    "alertlevel": "Orange",
+    "alertscore": 2,
+    "episodealertlevel": "Orange",
+    "episodealertscore": 1.0,
+    "istemporary": "false",
+    "iscurrent": "false",
+    "country": "Madagascar",
+    "fromdate": "2025-11-21T00:00:00",
+    "todate": "2026-09-21T00:00:00",
+    "datemodified": "2026-09-23T05:57:24",
+    "iso3": "MDG",
+    "source": "GDO",
+    "sourceid": "",
+    "polygonlabel": "Centroid",
+    "Class": "Point_Centroid",
+    "affectedcountries": [
+     {
+      "iso2": "MG",
+      "iso3": "MDG",
+      "countryname": "Madagascar"
+     }
+    ],
+    "severitydata": {
+     "severity": 97655.0,
+     "severitytext": "Medium impact for agricultural drought in 97655 km2",
+     "severityunit": "km2"
+    }
+   }
+  }
+ ],
+ "bbox": null
+}

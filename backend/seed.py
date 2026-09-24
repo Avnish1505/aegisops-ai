@@ -13,7 +13,7 @@ from aegisops.application.decision_service import DecisionService
 from aegisops.application.scenario_service import generate_scenario
 from aegisops.core.config import Settings
 from aegisops.infrastructure.decision_store import record_decision
-from aegisops.planning.travel import EuclideanProvider
+from aegisops.planning.travel import StraightLineProvider
 from backend.db.models import Decision
 
 DEMO_SEED = 42
@@ -26,7 +26,7 @@ def seed(database_url: str) -> int | None:
         if session.scalar(select(func.count()).select_from(Decision)):
             return None
         scenario = generate_scenario(seed=DEMO_SEED)
-        outcome = DecisionService({}, EuclideanProvider()).decide(scenario)
+        outcome = DecisionService({}, StraightLineProvider()).decide(scenario)
         return record_decision(session, scenario, outcome, proposer="seed").id
 
 

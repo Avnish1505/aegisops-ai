@@ -1,0 +1,132 @@
+{
+  "_recorded_from": "osrm-routed v6.0.0, car profile, OSM central-zone extract 2026-09-22 clipped to Lucknow district; waypoint hints removed",
+  "scenario": {
+    "scenario_id": "SCEN-osrm-fixture",
+    "incidents": [
+      {
+        "id": "INC-aminabad",
+        "type": "flood",
+        "severity": "critical",
+        "location": {
+          "lat": 26.8445,
+          "lon": 80.9275
+        },
+        "people_affected": 12,
+        "reported_at_min": 0,
+        "resources_needed": {
+          "boat": 1
+        }
+      },
+      {
+        "id": "INC-chowk",
+        "type": "medical",
+        "severity": "high",
+        "location": {
+          "lat": 26.8702,
+          "lon": 80.9094
+        },
+        "people_affected": 2,
+        "reported_at_min": 5,
+        "resources_needed": {
+          "ambulance": 1
+        }
+      }
+    ],
+    "resources": [
+      {
+        "id": "RES-charbagh-boat",
+        "type": "boat",
+        "location": {
+          "lat": 26.832,
+          "lon": 80.9219
+        },
+        "speed_kmh": 20
+      },
+      {
+        "id": "RES-hazratganj-amb",
+        "type": "ambulance",
+        "location": {
+          "lat": 26.8505,
+          "lon": 80.947
+        }
+      },
+      {
+        "id": "RES-aliganj-amb",
+        "type": "ambulance",
+        "location": {
+          "lat": 26.8931,
+          "lon": 80.9395
+        }
+      }
+    ]
+  },
+  "request": {
+    "path": "/table/v1/driving/80.921900,26.832000;80.947000,26.850500;80.939500,26.893100;80.927500,26.844500;80.909400,26.870200",
+    "params": {
+      "sources": "0;1;2",
+      "destinations": "3;4",
+      "annotations": "duration"
+    }
+  },
+  "response": {
+    "code": "Ok",
+    "destinations": [
+      {
+        "location": [
+          80.927471,
+          26.844528
+        ],
+        "name": "",
+        "distance": 4.23506227
+      },
+      {
+        "location": [
+          80.909314,
+          26.870479
+        ],
+        "name": "",
+        "distance": 32.07297302
+      }
+    ],
+    "durations": [
+      [
+        181.7,
+        399.4
+      ],
+      [
+        306.2,
+        430.6
+      ],
+      [
+        568,
+        439.2
+      ]
+    ],
+    "sources": [
+      {
+        "location": [
+          80.921881,
+          26.832223
+        ],
+        "name": "Kanpur-Lucknow Road",
+        "distance": 24.78065661
+      },
+      {
+        "location": [
+          80.946389,
+          26.850495
+        ],
+        "name": "",
+        "distance": 60.71417605
+      },
+      {
+        "location": [
+          80.939551,
+          26.893181
+        ],
+        "name": "",
+        "distance": 10.30677982
+      }
+    ]
+  }
+}

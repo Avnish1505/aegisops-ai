@@ -1,53 +1,73 @@
-"""NVIDIA NIM-backed decision engine with a safe blocked fallback."""
+"""LLM-direct allocation engine (the experiment arm), with a safe blocked fallback.
+
+Under the target pipeline the LLM does not allocate; the CP-SAT solver does. This engine stays as
+the comparison arm for ``evals/llm_vs_solver.py`` and as the ``llm_rag`` option in the API, where
+every proposal goes through the verifier and a failure blocks. It calls the model through the one
+shared client (``aegisops.llm.client``), with the output constrained to ``LLMAllocation``.
+"""
 
 from __future__ import annotations
 
 import json
-import os
 from collections.abc import Sequence
 
-import httpx
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict
 
 from aegisops.application.ports import RetrievalPort
+from aegisops.core.config import Settings
 from aegisops.domain.models import (
+    Assignment,
     DecisionResult,
     DecisionStatus,
     Evidence,
     SafetyFinding,
     Scenario,
+    UnmetRequirement,
 )
 from aegisops.infrastructure.prompt_templates import (
     DEFAULT_PROMPT_VERSION,
     PromptTemplate,
     get_prompt_template,
 )
+from aegisops.llm.client import LLMClient, LLMError, LLMOutputError, Prompt
 from aegisops.planning.constraints import PlanningConstraint
-from aegisops.planning.travel import EuclideanProvider, TravelTimeMatrix
+from aegisops.planning.travel import StraightLineProvider, TravelTimeMatrix
 
-NIM_CHAT_COMPLETIONS_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
-DEFAULT_NIM_MODEL = "meta/llama-3.1-8b-instruct"
+
+class LLMAllocation(BaseModel):
+    """What the model is asked for. Status, findings and coverage are never taken from it."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    scenario_id: str
+    requires_human_approval: bool
+    assignments: list[Assignment]
+    unmet_requirements: list[UnmetRequirement]
+    decision_trace: list[str]
 
 
 class LLMDecisionEngine:
-    """Create human-approved advisory results through NVIDIA NIM."""
+    """Create human-approved advisory results from an LLM's allocation."""
 
     name = "nvidia_nim_v1"
+    attempts = 2
 
     def __init__(
         self,
         retrieval_engine: RetrievalPort,
         *,
-        api_key: str | None = None,
-        client: httpx.Client | None = None,
-        model: str | None = None,
+        llm: LLMClient | None = None,
         prompt_version: str = DEFAULT_PROMPT_VERSION,
+        max_tokens: int = 4_096,
     ) -> None:
         self._retrieval_engine = retrieval_engine
-        self._api_key = api_key or os.getenv("NVIDIA_API_KEY")
-        self._client = client or httpx.Client(timeout=10.0)
-        self._model = model or os.getenv("NVIDIA_NIM_MODEL", DEFAULT_NIM_MODEL)
+        self._llm = llm or LLMClient(Settings())
         self._prompt: PromptTemplate = get_prompt_template(prompt_version)
+        self._max_tokens = max_tokens
+
+    @property
+    def model(self) -> str:
+        return self._llm.model
 
     def recommend(
         self,
@@ -61,18 +81,18 @@ class LLMDecisionEngine:
             for incident in scenario.incidents
         )
         snippets, evidence = self._retrieve_with_provenance(query)
-        if not self._api_key:
+        if not self._llm.available:
             return self._blocked_result(
-                scenario, evidence, "NVIDIA API credentials are unavailable."
+                scenario, evidence, "No LLM credentials are configured."
             )
-        matrix = travel_times or EuclideanProvider().matrix(scenario)
-        for _ in range(2):
+        matrix = travel_times or StraightLineProvider().matrix(scenario)
+        for _ in range(self.attempts):
             try:
                 return self._request_decision(scenario, snippets, evidence, matrix, constraints)
-            except (httpx.HTTPError, KeyError, TypeError, ValueError, ValidationError):
+            except (LLMError, LLMOutputError, ValueError):
                 continue
         return self._blocked_result(
-            scenario, evidence, "NVIDIA NIM response validation failed."
+            scenario, evidence, "LLM response validation failed."
         )
 
     def _retrieve_with_provenance(self, query: str) -> tuple[list[str], list[Evidence]]:
@@ -100,61 +120,43 @@ class LLMDecisionEngine:
         travel_times: TravelTimeMatrix,
         constraints: Sequence[PlanningConstraint],
     ) -> DecisionResult:
-        response = self._client.post(
-            NIM_CHAT_COMPLETIONS_URL,
-            headers={
-                "Authorization": f"Bearer {self._api_key}",
-                "Accept": "application/json",
-            },
-            json={
-                "model": self._model,
-                "stream": False,
-                "temperature": 0,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": self._prompt.system_message,
-                    },
-                    {
-                        "role": "user",
-                        "content": json.dumps(
-                            {
-                                "scenario": scenario.model_dump(mode="json"),
-                                "travel_minutes": travel_times.minutes,
-                                "constraints": [
-                                    item.model_dump(mode="json") for item in constraints
-                                ],
-                                "knowledge_snippets": snippets,
-                                "evidence": [item.model_dump(mode="json") for item in evidence],
-                            }
-                        ),
-                    },
-                ],
-            },
+        user = json.dumps(
+            {
+                "scenario": scenario.model_dump(mode="json"),
+                "travel_minutes": travel_times.minutes,
+                "constraints": [item.model_dump(mode="json") for item in constraints],
+                "knowledge_snippets": snippets,
+                "evidence": [item.model_dump(mode="json") for item in evidence],
+            }
         )
-        response.raise_for_status()
-        content = response.json()["choices"][0]["message"]["content"]
-        proposal = DecisionResult.model_validate(json.loads(content))
+        proposal = self._llm.complete_json(
+            Prompt("allocation", self._prompt.version, self._prompt.system_message, user),
+            LLMAllocation,
+            max_tokens=self._max_tokens,
+        ).value
         if proposal.scenario_id != scenario.scenario_id:
-            raise ValueError("NIM response scenario_id does not match the request")
+            raise ValueError("LLM response scenario_id does not match the request")
         # No repair here: every claim (units, travel times, citations, the approval flag) is
         # judged by verification.verifier, and the operator sees what the model actually said.
-        return proposal.model_copy(
-            update={
-                "engine": self.name,
-                # The model's own status and findings are untrusted text; the verifier and the
-                # safety gates decide both.
-                "status": DecisionStatus.REQUIRES_HUMAN_APPROVAL,
-                "safety_findings": [],
-                "decision_trace": [
-                    *proposal.decision_trace,
-                    "Proposal returned unmodified for deterministic verification.",
-                ],
-                "evidence_ids": [item.id for item in evidence],
-                "evidence": evidence,
-                "prompt_version": self._prompt.version,
-                "model_version": self._model,
-            }
+        return DecisionResult(
+            scenario_id=scenario.scenario_id,
+            engine=self.name,
+            # The model's own status and findings are never asked for; the verifier and the
+            # safety gates decide both. Its approval flag is kept so the verifier can flag it.
+            status=DecisionStatus.REQUIRES_HUMAN_APPROVAL,
+            requires_human_approval=proposal.requires_human_approval,
+            assignments=proposal.assignments,
+            unmet_requirements=proposal.unmet_requirements,
+            safety_findings=[],
+            coverage=0.0,  # recomputed by DecisionService from the assignments
+            decision_trace=[
+                *proposal.decision_trace,
+                "Proposal returned unmodified for deterministic verification.",
+            ],
+            evidence_ids=[item.id for item in evidence],
+            evidence=evidence,
+            prompt_version=self._prompt.version,
+            model_version=self.model,
         )
 
     def _blocked_result(
@@ -170,7 +172,7 @@ class LLMDecisionEngine:
                 SafetyFinding(
                     code="NIM_DECISION_UNAVAILABLE",
                     severity="critical",
-                    message="NVIDIA NIM decision generation failed; human escalation is required.",
+                    message="LLM decision generation failed; human escalation is required.",
                 )
             ],
             coverage=0.0,
@@ -182,5 +184,5 @@ class LLMDecisionEngine:
             evidence_ids=[item.id for item in evidence],
             evidence=evidence,
             prompt_version=self._prompt.version,
-            model_version=self._model,
+            model_version=self.model,
         )

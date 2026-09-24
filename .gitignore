@@ -12,3 +12,14 @@ dist/
 .DS_Store
 *.db
 .hypothesis/
+/data/
+.sf/
+evals/data/.cache/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+
+# Built by scripts/build_legacy.sh (tag v0-ui + study adapter)
+/public/legacy/

@@ -1,107 +1,126 @@
 # AegisOps
 
-AegisOps turns messy incident reports into solver-backed response plans that a human approves,
-with every number re-checked and every decision replayable. Research platform, not an emergency
-system.
+**Flood reports in, solver-backed response plans out: a human approves each one, every number is
+re-checked, and every decision can be replayed.** A research platform, not an emergency system.
 
-That sentence describes where the project is going. The **Status** table below says what exists
-today, and every row points to the file or test that backs it.
+![The console: triage a report, plan on road times, approve as a second person, audit](docs/media/aegisops-console.gif)
+
+*The console on the fictional Lucknow flood exercise: priority queue and map; triaging a
+Hinglish report by hand; the CP-SAT plan with verified ETAs; approval by a different person with a
+reason code; the hash-chained audit trail. Script: [docs/DEMO.md](docs/DEMO.md).*
 
 ## Safety position
 
-This service never dispatches resources. Every recommendation has `requires_human_approval: true`,
-and a `blocked` recommendation cannot be approved: the API returns 409. It works only on
-synthetic scenarios. Do not connect it to emergency operations or use it with real personal or
-operational data.
+AegisOps never dispatches anything:
+
+- Every plan requires human approval.
+- A blocked plan cannot be approved.
+- Whoever proposed a plan cannot approve it.
+- Model output reaches an operator only after deterministic checks.
+
+It runs a fictional exercise set on real Lucknow places and has no connection to any emergency
+service. Do not connect it to emergency operations or use it with real personal or operational
+data.
+
+## How it works
+
+```mermaid
+flowchart LR
+    R["Field report<br/>(English / Hindi / Hinglish)"] --> READ["Read<br/>LLM, schema-constrained;<br/>every field quoted,<br/>ungrounded fields dropped"]
+    READ --> TRIAGE["Triage<br/>operator confirms facts;<br/>severity by fixed rules"]
+    TRIAGE --> PLAN["Plan<br/>CP-SAT over OSRM<br/>road travel times"]
+    PLAN --> VERIFY["Verify<br/>pure checks: units, ETAs,<br/>coverage, optimality, SITREP"]
+    VERIFY --> DECIDE["Decide<br/>approver ≠ proposer,<br/>reason code required"]
+    DECIDE --> COMM["Communicate<br/>LLM drafts SITREP / CAP;<br/>numbers re-checked, never sent"]
+    VERIFY --> LOG[("Record<br/>hash-chained events;<br/>replayable decisions")]
+    DECIDE --> LOG
+    COMM --> LOG
+```
+
+The model reads reports and drafts prose. A solver allocates units, and pure functions verify
+every plan before a person sees it. Why: [ADR 001](docs/adr/001-solver-not-llm-for-allocation.md)
+(solver, not LLM), [ADR 002](docs/adr/002-verifier-as-pure-functions.md) (verifier),
+[ADR 003](docs/adr/003-hash-chained-audit-log.md) (audit chain),
+[ADR 004](docs/adr/004-separation-of-duties.md) (separation of duties). Details:
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Results
+
+Every number here comes from a committed file in [`reports/`](reports/README.md).
+
+| Evaluation | Result | Source |
+| --- | --- | --- |
+| Verifier fault injection: fault classes injected one at a time into seeded scenarios ([method](reports/fault_injection.md)) | Every class caught on every scenario: [13/13 classes, 650/650 faults](reports/fault_injection.md); clean solver plans falsely blocked: [0/50](reports/fault_injection.md) | [reports/fault_injection.md](reports/fault_injection.md), [.json](reports/fault_injection.json) |
+| LLM steps: reading reports, translating operator notes, SITREP numbers, end-to-end pass^5, latency, cost | **Not run.** The harness is built and checked against an oracle model; no live model has been run, so no accuracy, latency or cost is claimed | [reports/README.md](reports/README.md) |
+| LLM-direct allocation vs CP-SAT on Lucknow scenarios with OSRM road times | **Not run**, for the same reason | [reports/README.md](reports/README.md) |
+| User study: old vs new console, timed reviews with injected errors | **No sessions run.** The protocol and instrument are built | [docs/USER_STUDY.md](docs/USER_STUDY.md) |
+
+An earlier report showed the LLM engine "blocked" on every scenario. It was produced without a
+model key, so it measured the fallback path, and it is marked superseded in
+[reports/README.md](reports/README.md).
+
+## Limitations
+
+- **No live-model results.** The reader, constraint translator, drafting and LLM allocation
+  have only been run against mocked or oracle models. The evaluations above have not been run.
+- **Road times are free-flow.** OSRM's car profile knows nothing about traffic, closures or
+  flooding.
+- **The exercise is fictional.** Incidents and reports are written for the exercise. Unit counts
+  at facilities are an assumption, and OpenStreetMap's facility coverage is incomplete.
+- **The verifier checks only what data can decide.** SITREP numbers must follow a fixed phrasing,
+  and instruction detection is pattern-based.
+- **No real sign-in.** There are development and demo identities only; no OIDC login is built.
+- **Fault injection is not an attack evaluation.** The faults come from mutators written
+  alongside the verifier, one at a time.
+- **The public demo is configured but not deployed** ([deployment guide](docs/DEPLOYMENT_GUIDE.md)).
+
+What exists, row by row, with the file or test for each: [docs/STATUS.md](docs/STATUS.md).
 
 ## Quick start
 
 ```bash
-docker compose up --build
+./scripts/osrm_prepare.sh     # once: Geofabrik extract -> Lucknow clip -> OSRM graph (needs Docker)
+docker compose up --build     # PostGIS, OSRM, Phoenix traces, API, feed worker, console
 ```
 
-This starts the API on http://localhost:8000 and the operations console on http://localhost:5173
-(`docker-compose.yml`, `Dockerfile`, `Dockerfile.ui`). On first start the API applies migrations
-and records one demo decision for synthetic seed 42 (`backend/seed.py`). You can read it at
-http://localhost:8000/api/v1/decisions/1.
+Open http://localhost:5173. On start the API migrates the database, imports the Lucknow
+facilities, seeds the exercise and the demo triage reports, and plans the exercise once on road
+times (`scripts/compose_api_start.sh`).
 
 Without Docker (Python 3.11–3.13, Node 22):
 
 ```bash
 python3 -m venv venv && source venv/bin/activate && pip install -r requirements-dev.txt
-alembic -c backend/alembic.ini upgrade head
-AEGISOPS_ENVIRONMENT=development AEGISOPS_DEBUG=true uvicorn backend.main:app --reload --port 8000
+alembic -c backend/alembic.ini upgrade head && python -m backend.snapshot_seed
+AEGISOPS_ENVIRONMENT=development uvicorn backend.main:app --reload --port 8000
 npm ci && npm run dev          # console on http://localhost:5173
 ```
 
-Settings are read from `AEGISOPS_`-prefixed environment variables (`aegisops/core/config.py`,
-[ENVIRONMENT.md](ENVIRONMENT.md)).
+Model steps need `AEGISOPS_LLM_API_KEY` (any OpenAI-compatible endpoint; NVIDIA NIM by default).
+Without a key they say so and the rest works. Settings: [ENVIRONMENT.md](ENVIRONMENT.md).
+Checks: `pytest`, `ruff check .`, `mypy aegisops`, `npm test`, `npx playwright test`.
 
-## Status
+## Sources
 
-| Area | State | Evidence |
+| Source | Used for | Licence / terms |
 | --- | --- | --- |
-| Synthetic scenarios | ✅ The same seed always gives the same scenario | `aegisops/application/scenario_service.py`; `tests/test_api.py::test_scenario_endpoint_is_reproducible_and_sets_request_id` |
-| Planning | ✅ CP-SAT assignment minimising severity-weighted travel plus a penalty per unmet unit; typed reserve / exclude / priority constraints; infeasible constraints are named. The greedy engine is kept as a baseline. ⚠️ Travel time is straight-line distance on a synthetic grid | `aegisops/planning/solver.py`; `tests/test_solver.py` |
-| Fault injection | ✅ 13 fault classes × 50 seeded scenarios: every injected fault caught by its check (650/650); 0 of 50 clean solver plans falsely blocked. [Report](reports/fault_injection.md) | `tests/fault_injection/`; `scripts/fault_report.py` |
-| Safety gates | ✅ An unmet critical requirement blocks the plan | `tests/test_decision_engine.py::test_engine_blocks_critical_unmet_capability` |
-| Verification | ✅ Every engine's plan goes through 18 deterministic checks (units, availability, duplicates, capability, quantities, travel times recomputed within max(1 min, 5%), critical coverage, objective vs the CP-SAT optimum, constraints, citations and quotes, SITREP numbers, approval flag, instruction-like report text). Any critical failure blocks; the API returns the full report | `aegisops/verification/verifier.py`; `tests/test_verifier.py`; `tests/test_llm_decision_engine.py` |
-| LLM engine (NVIDIA NIM) | ❌ **Not evaluated against a live model.** Every test uses a mocked HTTP response. Without `NVIDIA_API_KEY` it returns `blocked` | `tests/test_llm_decision_engine.py`; `tests/test_api.py::test_decision_endpoint_selects_llm_rag_engine` |
-| Retrieval | ⚠️ **Keyword hashing, not semantic search.** Tokens are hashed into 256 buckets and ranked by inner product | `aegisops/infrastructure/knowledge_retrieval.py`; `tests/test_knowledge_retrieval.py` |
-| Human decision | ✅ Approve/reject with a reason, written to an audit log. Blocked decisions return 409 | `tests/test_persistence_integration.py::test_blocked_decision_cannot_be_approved_or_create_disposition` |
-| Proposer ≠ approver | ✅ Each decision records the proposer's token subject; approving needs the `approver` role and the same subject gets 409 "proposer cannot approve" | `tests/test_auth.py::test_proposer_cannot_approve_their_own_decision` |
-| Decision record | ✅ Stores the input scenario and its SHA-256, the plan, verification report, SITREP, constraints, travel matrix, and prompt/model versions. A stored record replays and re-verifies to the same result | `tests/test_persistence_integration.py::test_stored_decision_replays_and_reverifies_to_the_same_result` |
-| Audit log integrity | ✅ Decisions, verifications and dispositions append to a hash-chained `events` table; each event also hashes the decision/approval row it created. `GET /api/v1/audit/verify` reports the first broken link, and editing any event column, deleting an event, or editing a decision or approval row is detected. ⚠️ Deleting the newest event is only detectable against an externally kept `head_hash` | `aegisops/audit/event_log.py`; `tests/test_event_chain.py` |
-| Auth | ✅ JWT bearer tokens with `sub` and `role`: HS256 with `AEGISOPS_SECRET_KEY`, or RS256 against an OIDC JWKS. The server refuses to start outside development with the published dev key. ⚠️ The console only has the development sign-in (`/api/v1/dev/token`, mounted only when `AEGISOPS_ENVIRONMENT=development`); no OIDC login flow is built | `aegisops/api/auth.py`; `tests/test_auth.py` |
-| Free-text intake / message drafting | ❌ No LLM intake or drafting. ⚠️ A deterministic SITREP template is generated and its numbers verified | `aegisops/communication/sitrep.py` |
-| Multi-agent | ❌ None. `backend/agents/roles.py` holds data-only role descriptions | `backend/agents/roles.py` |
-| Database | ⚠️ SQLite is the only backend exercised by tests and the container | `tests/test_persistence_integration.py`; `Dockerfile` |
-| Evaluation | ✅ Golden-scenario regression suite for the rule-based engine | `sim/evaluation_harness.py`; `tests/test_evaluation_harness.py` |
-| Delivery | ✅ CI runs Python lint/types/tests (3.11), frontend lint/typecheck/build, and a container smoke test that requires 200 from `/health/ready` and a seeded `POST /api/v1/decisions` | `.github/workflows/ci.yml` |
-| Logging | ✅ JSON logs carry an ISO-8601 UTC `timestamp`, `level`, and `request_id` | `tests/test_observability.py::test_json_log_record_has_real_timestamp_and_level` |
-
-## Architecture
-
-```text
-browser console (src/) -> FastAPI (aegisops/api) -> DecisionEngine -> verify (domain/policy.py)
-                                  |                   rule_based | llm_rag (NIM, re-checked)
-                                  +-> SQLite: decisions, approvals, audit_log (backend/db)
-```
-
-The target pipeline is Read → Plan → Verify → Decide → Communicate → Record. In it, the LLM only
-parses input and drafts messages, and deterministic code checks every number before an operator
-sees it. The Status table lists which of those steps exist today.
-
-## Repository layout
-
-- `aegisops/domain`: validated entities and deterministic policy/verification functions.
-- `aegisops/application`: scenario generation, ports, and the shared `UserRole` enum.
-- `aegisops/infrastructure`: rule-based and NIM engines, retrieval, decision persistence.
-- `aegisops/api`: FastAPI transport, dev-only role checks, error handling, headers.
-- `backend`: ASGI entry point, SQLAlchemy models, Alembic migrations, demo seed.
-- `sim`: golden scenarios, evaluation harness, engine comparison.
-- `src`: React + Vite operations console.
-- `tests`: pytest suite.
-
-## Implementation Integrity Analyzer
-
-A separate static-analysis research tool lives in `aegisops/integrity_analyzer`. Design,
-limitations, and its benchmark against a naive grep baseline:
-[docs/INTEGRITY_ANALYZER.md](docs/INTEGRITY_ANALYZER.md).
+| [OpenStreetMap](https://www.openstreetmap.org) via [Geofabrik](https://download.geofabrik.de/asia/india.html) | Road network (OSRM), hospitals, fire and police stations, localities, the gazetteer | © OpenStreetMap contributors, [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/); derived data (`data/`, `deploy/osm/`) stays under the ODbL |
+| [OpenFreeMap](https://openfreemap.org) vector tiles | Console basemap (greyscale) | © OpenStreetMap contributors (ODbL); © OpenMapTiles; attribution on the map |
+| [OSRM](https://project-osrm.org) `osrm-backend` v6.0.0 | Road travel times and routes | BSD 2-Clause |
+| [NDMA SACHET](https://sachet.ndma.gov.in) CAP feed | Official Indian disaster alerts (CAP 1.2) | National Disaster Management Authority, Government of India; see the portal for terms |
+| [USGS](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php) `all_day` GeoJSON | Earthquake events | U.S. Geological Survey; public domain unless noted |
+| [GDACS](https://www.gdacs.org) event list | Global disaster events | UN / European Commission; see gdacs.org |
+| [HumAID](https://crisisnlp.qcri.org/humaid_dataset) tweet IDs and labels | Part of the reader eval set (text fetched at eval time, not committed) | See the dataset page for terms |
 
 ## Documentation
 
-- [API Specification](docs/API.md)
-- [Environment variables](ENVIRONMENT.md)
-- [Engineering and Research Roadmap](docs/ROADMAP.md)
-- [Security Threat Model](docs/SECURITY_THREAT_MODEL.md)
-- [Developer Guide](docs/DEVELOPER_GUIDE.md)
-- [Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
-- [Implementation Integrity Analyzer](docs/INTEGRITY_ANALYZER.md)
-- Design documents: [SRS](docs/SRS.md), [SAD](docs/SAD.md), [HLD](docs/HLD.md), [LLD](docs/LLD.md),
-  [Database](docs/DATABASE_SPECIFICATION.md), [Test Strategy](docs/TEST_STRATEGY.md)
-- Research drafts: [Research Proposal](docs/RESEARCH_PROPOSAL.md),
-  [Paper draft](docs/IEEE_PAPER_DRAFT.md)
-
-The design documents and research drafts were written in earlier phases. Where they disagree with
-this README's Status table, the table and the code are authoritative.
+- [Architecture](docs/ARCHITECTURE.md), [decision records](docs/adr/README.md),
+  [status](docs/STATUS.md)
+- [API](docs/API.md), [environment variables](ENVIRONMENT.md), [developer guide](docs/DEVELOPER_GUIDE.md),
+  [deployment](docs/DEPLOYMENT_GUIDE.md), [demo script](docs/DEMO.md)
+- [Evaluation datasets](evals/data/DATASET.md), [reports](reports/README.md),
+  [user study protocol](docs/USER_STUDY.md)
+- [Security threat model](docs/SECURITY_THREAT_MODEL.md), [test strategy](docs/TEST_STRATEGY.md),
+  [roadmap](docs/ROADMAP.md), [research proposal](docs/RESEARCH_PROPOSAL.md)
+- [Implementation Integrity Analyzer](docs/INTEGRITY_ANALYZER.md) (a separate static-analysis
+  tool, moving to its own repository)

@@ -1,0 +1,770 @@
+{
+ "scenario_id": "EX-LKO-MONSOON-01",
+ "incidents": [
+  {
+   "id": "INC-LKO-01",
+   "type": "flood",
+   "severity": "critical",
+   "location": {
+    "lat": 26.83188,
+    "lon": 80.927622
+   },
+   "people_affected": 35,
+   "reported_at_min": 5,
+   "resources_needed": {
+    "boat": 1,
+    "rescue_team": 1
+   },
+   "report": "Charbagh: Chest-deep water in lanes behind the railway station; about 35 residents on rooftops, including an elderly man who needs oxygen."
+  },
+  {
+   "id": "INC-LKO-02",
+   "type": "medical",
+   "severity": "high",
+   "location": {
+    "lat": 26.835743,
+    "lon": 80.925508
+   },
+   "people_affected": 1,
+   "reported_at_min": 12,
+   "resources_needed": {
+    "ambulance": 1
+   },
+   "report": "Charbagh: Man electrocuted by a snapped overhead line in standing water; breathing, unconscious."
+  },
+  {
+   "id": "INC-LKO-03",
+   "type": "medical",
+   "severity": "medium",
+   "location": {
+    "lat": 26.834036,
+    "lon": 80.929434
+   },
+   "people_affected": 3,
+   "reported_at_min": 40,
+   "resources_needed": {
+    "ambulance": 1
+   },
+   "report": "Charbagh: Three passengers injured when an auto-rickshaw overturned in a submerged pothole."
+  },
+  {
+   "id": "INC-LKO-04",
+   "type": "structural_collapse",
+   "severity": "high",
+   "location": {
+    "lat": 26.856156,
+    "lon": 80.942746
+   },
+   "people_affected": 4,
+   "reported_at_min": 18,
+   "resources_needed": {
+    "rescue_team": 2,
+    "ambulance": 2
+   },
+   "report": "Hazratganj: Old shopfront balcony collapsed onto the pavement; two people trapped."
+  },
+  {
+   "id": "INC-LKO-05",
+   "type": "medical",
+   "severity": "low",
+   "location": {
+    "lat": 26.852833,
+    "lon": 80.946169
+   },
+   "people_affected": 1,
+   "reported_at_min": 55,
+   "resources_needed": {
+    "ambulance": 1
+   },
+   "report": "Hazratganj: Pedestrian slipped in floodwater near the market; suspected fractured ankle."
+  },
+  {
+   "id": "INC-LKO-06",
+   "type": "structural_collapse",
+   "severity": "critical",
+   "location": {
+    "lat": 26.849508,
+    "lon": 80.928108
+   },
+   "people_affected": 7,
+   "reported_at_min": 9,
+   "resources_needed": {
+    "rescue_team": 2,
+    "ambulance": 2
+   },
+   "report": "Aminabad: Rear wall of a century-old building gave way after soaking; family of seven reported inside, voices heard."
+  },
+  {
+   "id": "INC-LKO-07",
+   "type": "fire",
+   "severity": "high",
+   "location": {
+    "lat": 26.847442,
+    "lon": 80.925389
+   },
+   "people_affected": 6,
+   "reported_at_min": 22,
+   "resources_needed": {
+    "fire_unit": 2,
+    "ambulance": 1
+   },
+   "report": "Aminabad: Short circuit fire in a flooded electrical shop; smoke spreading to rooms above."
+  },
+  {
+   "id": "INC-LKO-08",
+   "type": "flood",
+   "severity": "critical",
+   "location": {
+    "lat": 26.869511,
+    "lon": 80.904818
+   },
+   "people_affected": 60,
+   "reported_at_min": 3,
+   "resources_needed": {
+    "boat": 1,
+    "rescue_team": 1
+   },
+   "report": "Chowk: Gomti overtopping near the old city ghats; about 60 people cut off in a mohalla."
+  },
+  {
+   "id": "INC-LKO-09",
+   "type": "flood",
+   "severity": "high",
+   "location": {
+    "lat": 26.866637,
+    "lon": 80.906027
+   },
+   "people_affected": 20,
+   "reported_at_min": 15,
+   "resources_needed": {
+    "boat": 1,
+    "rescue_team": 1
+   },
+   "report": "Chowk: Ground floors flooded in a narrow lane; 20 residents asking to be moved out."
+  },
+  {
+   "id": "INC-LKO-10",
+   "type": "medical",
+   "severity": "medium",
+   "location": {
+    "lat": 26.868074,
+    "lon": 80.901697
+   },
+   "people_affected": 1,
+   "reported_at_min": 35,
+   "resources_needed": {
+    "ambulance": 1
+   },
+   "report": "Chowk: Pregnant woman in labour; the lane is waterlogged and cars cannot enter."
+  },
+  {
+   "id": "INC-LKO-11",
+   "type": "flood",
+   "severity": "medium",
+   "location": {
+    "lat": 26.906587,
+    "lon": 80.948898
+   },
+   "people_affected": 12,
+   "reported_at_min": 28,
+   "resources_needed": {
+    "boat": 1,
+    "rescue_team": 1
+   },
+   "report": "Aliganj: Basement flats flooding in a housing block; 12 residents on the stairwell."
+  },
+  {
+   "id": "INC-LKO-12",
+   "type": "medical",
+   "severity": "high",
+   "location": {
+    "lat": 26.904252,
+    "lon": 80.946682
+   },
+   "people_affected": 1,
+   "reported_at_min": 20,
+   "resources_needed": {
+    "ambulance": 1
+   },
+   "report": "Aliganj: Child bitten by a snake that came in with floodwater; parents are on the roof."
+  },
+  {
+   "id": "INC-LKO-13",
+   "type": "flood",
+   "severity": "critical",
+   "location": {
+    "lat": 26.855571,
+    "lon": 81.000361
+   },
+   "people_affected": 45,
+   "reported_at_min": 6,
+   "resources_needed": {
+    "boat": 2,
+    "rescue_team": 1
+   },
+   "report": "Gomti Nagar: Riverside colony inundated after the embankment seeped; 45 people, several children, waiting on first floors."
+  },
+  {
+   "id": "INC-LKO-14",
+   "type": "fire",
+   "severity": "medium",
+   "location": {
+    "lat": 26.851079,
+    "lon": 80.997844
+   },
+   "people_affected": 2,
+   "reported_at_min": 45,
+   "resources_needed": {
+    "fire_unit": 2,
+    "ambulance": 1
+   },
+   "report": "Gomti Nagar: Transformer fire beside a flooded road; two nearby houses evacuating."
+  },
+  {
+   "id": "INC-LKO-15",
+   "type": "medical",
+   "severity": "low",
+   "location": {
+    "lat": 26.853595,
+    "lon": 80.996031
+   },
+   "people_affected": 1,
+   "reported_at_min": 60,
+   "resources_needed": {
+    "ambulance": 1
+   },
+   "report": "Gomti Nagar: Resident with high fever unable to reach a clinic through waterlogged streets."
+  },
+  {
+   "id": "INC-LKO-16",
+   "type": "flood",
+   "severity": "high",
+   "location": {
+    "lat": 26.883396,
+    "lon": 80.992049
+   },
+   "people_affected": 25,
+   "reported_at_min": 14,
+   "resources_needed": {
+    "boat": 1,
+    "rescue_team": 1
+   },
+   "report": "Indira Nagar: Low-lying sector under knee-deep water rising slowly; 25 residents with livestock."
+  },
+  {
+   "id": "INC-LKO-17",
+   "type": "medical",
+   "severity": "medium",
+   "location": {
+    "lat": 26.880881,
+    "lon": 80.98943
+   },
+   "people_affected": 2,
+   "reported_at_min": 38,
+   "resources_needed": {
+    "ambulance": 1
+   },
+   "report": "Indira Nagar: Two workers hurt clearing a blocked drain; one with a deep leg wound."
+  },
+  {
+   "id": "INC-LKO-18",
+   "type": "flood",
+   "severity": "low",
+   "location": {
+    "lat": 26.815209,
+    "lon": 80.906388
+   },
+   "people_affected": 8,
+   "reported_at_min": 50,
+   "resources_needed": {
+    "boat": 1,
+    "rescue_team": 1
+   },
+   "report": "Alambagh: Water entering a bus depot staff quarters; 8 people want to leave before dark."
+  },
+  {
+   "id": "INC-LKO-19",
+   "type": "medical",
+   "severity": "high",
+   "location": {
+    "lat": 26.813143,
+    "lon": 80.910012
+   },
+   "people_affected": 1,
+   "reported_at_min": 16,
+   "resources_needed": {
+    "ambulance": 1
+   },
+   "report": "Alambagh: Dialysis patient stranded at home; next session is due within hours."
+  },
+  {
+   "id": "INC-LKO-20",
+   "type": "flood",
+   "severity": "medium",
+   "location": {
+    "lat": 26.857022,
+    "lon": 80.929384
+   },
+   "people_affected": 15,
+   "reported_at_min": 25,
+   "resources_needed": {
+    "boat": 1,
+    "rescue_team": 1
+   },
+   "report": "Kaiserbagh: Bus stand underpass flooded; a stalled minibus with 15 passengers inside."
+  }
+ ],
+ "resources": [
+  {
+   "id": "RES-AMB-n6621697164-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.841887,
+    "lon": 80.939922
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-n7018564216-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.844668,
+    "lon": 80.948981
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-n7018564257-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.850405,
+    "lon": 80.936254
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-n7025114554-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.874875,
+    "lon": 80.940274
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-n7025215055-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.846833,
+    "lon": 80.961277
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-n7025739665-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.857805,
+    "lon": 80.942418
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-n7028172591-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.850847,
+    "lon": 80.93252
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-n7028758422-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.84209,
+    "lon": 80.936989
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-n7030517275-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.874748,
+    "lon": 80.941514
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-n7031207670-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.839884,
+    "lon": 80.942689
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-n7205453350-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.846013,
+    "lon": 80.945286
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-n7510640720-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.840145,
+    "lon": 80.928505
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-n7510640734-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.84184,
+    "lon": 80.936967
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-n7510640743-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.8669,
+    "lon": 80.92888
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-n7510640775-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.847276,
+    "lon": 80.946015
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-w211742439-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.871518,
+    "lon": 80.952094
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-w212503396-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.857714,
+    "lon": 80.925461
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-w212503397-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.856767,
+    "lon": 80.924797
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-w212818781-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.856973,
+    "lon": 80.938554
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-AMB-w263974835-1",
+   "type": "ambulance",
+   "location": {
+    "lat": 26.87516,
+    "lon": 80.944083
+   },
+   "available": true,
+   "speed_kmh": 30.0
+  },
+  {
+   "id": "RES-BOAT-n13124599324-1",
+   "type": "boat",
+   "location": {
+    "lat": 26.839597,
+    "lon": 80.924987
+   },
+   "available": true,
+   "speed_kmh": 20.0
+  },
+  {
+   "id": "RES-BOAT-n13426664708-1",
+   "type": "boat",
+   "location": {
+    "lat": 26.873508,
+    "lon": 80.957599
+   },
+   "available": true,
+   "speed_kmh": 20.0
+  },
+  {
+   "id": "RES-BOAT-n13712007193-1",
+   "type": "boat",
+   "location": {
+    "lat": 26.871297,
+    "lon": 80.933224
+   },
+   "available": true,
+   "speed_kmh": 20.0
+  },
+  {
+   "id": "RES-BOAT-n1944291983-1",
+   "type": "boat",
+   "location": {
+    "lat": 26.873085,
+    "lon": 80.958727
+   },
+   "available": true,
+   "speed_kmh": 20.0
+  },
+  {
+   "id": "RES-BOAT-n3926829704-1",
+   "type": "boat",
+   "location": {
+    "lat": 26.84826,
+    "lon": 80.924363
+   },
+   "available": true,
+   "speed_kmh": 20.0
+  },
+  {
+   "id": "RES-BOAT-n447522086-1",
+   "type": "boat",
+   "location": {
+    "lat": 26.847189,
+    "lon": 80.946096
+   },
+   "available": true,
+   "speed_kmh": 20.0
+  },
+  {
+   "id": "RES-BOAT-n6635438740-1",
+   "type": "boat",
+   "location": {
+    "lat": 26.847647,
+    "lon": 80.939657
+   },
+   "available": true,
+   "speed_kmh": 20.0
+  },
+  {
+   "id": "RES-FIRE-w1124288529-1",
+   "type": "fire_unit",
+   "location": {
+    "lat": 26.812876,
+    "lon": 80.904464
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-FIRE-w1124288529-2",
+   "type": "fire_unit",
+   "location": {
+    "lat": 26.812876,
+    "lon": 80.904464
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-FIRE-w1366169593-1",
+   "type": "fire_unit",
+   "location": {
+    "lat": 26.870075,
+    "lon": 80.907548
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-FIRE-w1366169593-2",
+   "type": "fire_unit",
+   "location": {
+    "lat": 26.870075,
+    "lon": 80.907548
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-FIRE-w1497725901-1",
+   "type": "fire_unit",
+   "location": {
+    "lat": 26.872696,
+    "lon": 80.984077
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-FIRE-w1497725901-2",
+   "type": "fire_unit",
+   "location": {
+    "lat": 26.872696,
+    "lon": 80.984077
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-RESC-n13124599324-1",
+   "type": "rescue_team",
+   "location": {
+    "lat": 26.839597,
+    "lon": 80.924987
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-RESC-n13426664708-1",
+   "type": "rescue_team",
+   "location": {
+    "lat": 26.873508,
+    "lon": 80.957599
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-RESC-n13712007193-1",
+   "type": "rescue_team",
+   "location": {
+    "lat": 26.871297,
+    "lon": 80.933224
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-RESC-n1944291983-1",
+   "type": "rescue_team",
+   "location": {
+    "lat": 26.873085,
+    "lon": 80.958727
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-RESC-n2169806778-1",
+   "type": "rescue_team",
+   "location": {
+    "lat": 26.845803,
+    "lon": 80.918437
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-RESC-n3926829704-1",
+   "type": "rescue_team",
+   "location": {
+    "lat": 26.84826,
+    "lon": 80.924363
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-RESC-n447522086-1",
+   "type": "rescue_team",
+   "location": {
+    "lat": 26.847189,
+    "lon": 80.946096
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-RESC-n6635438740-1",
+   "type": "rescue_team",
+   "location": {
+    "lat": 26.847647,
+    "lon": 80.939657
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-RESC-w1124288529-1",
+   "type": "rescue_team",
+   "location": {
+    "lat": 26.812876,
+    "lon": 80.904464
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-RESC-w1366169593-1",
+   "type": "rescue_team",
+   "location": {
+    "lat": 26.870075,
+    "lon": 80.907548
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-RESC-w1455082522-1",
+   "type": "rescue_team",
+   "location": {
+    "lat": 26.878221,
+    "lon": 80.95895
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  },
+  {
+   "id": "RES-RESC-w1497725901-1",
+   "type": "rescue_team",
+   "location": {
+    "lat": 26.872696,
+    "lon": 80.984077
+   },
+   "available": true,
+   "speed_kmh": 25.0
+  }
+ ],
+ "sim_start_min": 0
+}

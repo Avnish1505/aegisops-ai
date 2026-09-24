@@ -20,6 +20,7 @@ from aegisops.planning.constraints import PlanningConstraint
 from aegisops.planning.objective import plan_coverage
 from aegisops.planning.solver import SolverDecisionEngine, SolveResult, solve
 from aegisops.planning.travel import TravelTimeMatrix, TravelTimeProvider
+from aegisops.telemetry import tool_span
 from aegisops.verification.models import (
     TextDraft,
     Verdict,
@@ -69,24 +70,35 @@ class DecisionService:
         if engine != SOLVER_ENGINE and engine not in self._engines:
             raise ValueError(f"Unknown engine: {engine}")
         constraint_tuple = tuple(constraints)
-        travel_times = self._travel_provider.matrix(scenario)
-        reference = solve(scenario, travel_times, constraint_tuple, time_limit_s=self._time_limit_s)
-        proposal = (
-            self._solver.result_from_solve(scenario, reference)
-            if engine == SOLVER_ENGINE
-            else self._engines[engine].recommend(scenario, travel_times, constraint_tuple)
-        )
+        with tool_span("travel_matrix") as span:
+            travel_times = self._travel_provider.matrix(scenario)
+            span.set_attributes({"aegisops.travel.provider": travel_times.provider,
+                                 "aegisops.travel.degraded": travel_times.degraded})
+        with tool_span("cp_sat_solve", constraints=len(constraint_tuple)) as span:
+            reference = solve(
+                scenario, travel_times, constraint_tuple, time_limit_s=self._time_limit_s
+            )
+            span.set_attribute("aegisops.solve.status", reference.status.value)
+        with tool_span("propose", engine=engine):
+            proposal = (
+                self._solver.result_from_solve(scenario, reference)
+                if engine == SOLVER_ENGINE
+                else self._engines[engine].recommend(scenario, travel_times, constraint_tuple)
+            )
         drafts = (render_sitrep(proposal, scenario, travel_times),)
-        report = verify(
-            proposal,
-            scenario,
-            reference_plan=reference,
-            travel_times=travel_times,
-            constraints=constraint_tuple,
-            evidence=proposal.evidence,
-            text_drafts=drafts,
-            policy=VerificationPolicy(require_citations=engine in CITING_ENGINES),
-        )
+        with tool_span("verify") as span:
+            report = verify(
+                proposal,
+                scenario,
+                reference_plan=reference,
+                travel_times=travel_times,
+                constraints=constraint_tuple,
+                evidence=proposal.evidence,
+                text_drafts=drafts,
+                policy=VerificationPolicy(require_citations=engine in CITING_ENGINES),
+            )
+            span.set_attributes({"aegisops.verify.verdict": report.verdict.value,
+                                 "aegisops.verify.blocking": list(report.blocking_check_ids)})
         findings, _ = evaluate_safety_gates(
             [
                 item
