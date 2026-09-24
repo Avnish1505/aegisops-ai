@@ -49,6 +49,7 @@ from aegisops.core.config import Settings
 from aegisops.core.logging import configure_logging, request_id_var
 from aegisops.domain.canonical import sha256_hex
 from aegisops.domain.models import DecisionResult, Scenario
+from aegisops.geodata.labels import Labeller
 from aegisops.infrastructure.decision_store import record_decision, serialize_decision
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 from aegisops.infrastructure.retrieval_engine import RetrievalEngine
@@ -183,10 +184,10 @@ def create_app(
         travel_provider or _default_travel_provider(active_settings),
     )
 
-    app.include_router(
-        console_router(session_factory, active_settings, llm, TicketBook())
-    )
     gazetteer = Gazetteer.load(DEFAULT_GAZETTEER)
+    app.include_router(
+        console_router(session_factory, active_settings, llm, TicketBook(), Labeller(gazetteer))
+    )
     reader = Reader(llm, gazetteer)
     translator = ConstraintTranslator(llm, gazetteer)
     reporter = Reporter(llm)

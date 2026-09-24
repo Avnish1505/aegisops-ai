@@ -1,7 +1,9 @@
 import { Outlet } from '@tanstack/react-router'
+import { useLiveUpdates } from '../../lib/stream'
 import { StatusBar } from './StatusBar'
 
 export function RootLayout() {
+  useLiveUpdates()
   return (
     <div className="flex h-screen flex-col bg-bg text-text">
       <a

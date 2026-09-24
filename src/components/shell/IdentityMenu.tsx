@@ -7,7 +7,7 @@ export function IdentityMenu() {
   if (options.length === 0) return null
   return (
     <label className="flex items-center gap-1.5 text-sm text-muted">
-      <span>Acting as</span>
+      <span className="sr-only">Acting as</span>
       <select
         value={identity?.sub ?? ''}
         onChange={(event) =>

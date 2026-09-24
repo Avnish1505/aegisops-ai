@@ -5,7 +5,7 @@ import {
   createRoute,
   createRouter,
 } from '@tanstack/react-router'
-import App from './App'
+import { OpsBoard } from './features/ops/OpsBoard'
 import { NotFound, RootLayout } from './components/shell/RootLayout'
 import { Pending } from './routes/Pending'
 
@@ -26,7 +26,7 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
 const opsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: App, // the pre-M3 console until the operations board replaces it
+  component: () => <OpsBoard />,
 })
 
 const planRoute = createRoute({

@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { IdentityMenu } from './IdentityMenu'
 import { IstClock } from './IstClock'
+import { SystemStatus } from './SystemStatus'
 import { ThemeToggle } from './ThemeToggle'
 
 const NAV = [
@@ -15,8 +16,7 @@ export function StatusBar() {
       <span className="rounded-sm border border-control-border px-1.5 text-xs font-semibold tracking-wider">
         EXERCISE
       </span>
-      <span className="text-sm font-semibold">AegisOps</span>
-      <nav aria-label="Main" className="flex gap-3 text-sm">
+            <nav aria-label="Main" className="flex gap-3 text-sm">
         {NAV.map((item) => (
           <Link
             key={item.to}
@@ -29,6 +29,7 @@ export function StatusBar() {
         ))}
       </nav>
       <div className="ml-auto flex items-center gap-4">
+        <SystemStatus />
         <IdentityMenu />
         <ThemeToggle />
         <IstClock />

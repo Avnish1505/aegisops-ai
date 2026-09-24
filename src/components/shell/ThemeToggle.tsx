@@ -1,23 +1,21 @@
+import { Monitor, Moon, Sun } from 'lucide-react'
 import { applyTheme, useTheme, type ThemeChoice } from '../../lib/theme'
 
-const LABELS: Record<ThemeChoice, string> = { system: 'System', dark: 'Dark', light: 'Light' }
+const NEXT: Record<ThemeChoice, ThemeChoice> = { system: 'dark', dark: 'light', light: 'system' }
+const ICON = { system: Monitor, dark: Moon, light: Sun }
 
 export function ThemeToggle() {
   const theme = useTheme()
+  const Icon = ICON[theme]
   return (
-    <label className="flex items-center gap-1.5 text-sm text-muted">
-      <span>Theme</span>
-      <select
-        value={theme}
-        onChange={(event) => applyTheme(event.target.value as ThemeChoice)}
-        className="rounded-sm border border-control-border bg-surface px-1.5 py-0.5 text-sm text-text"
-      >
-        {(Object.keys(LABELS) as ThemeChoice[]).map((choice) => (
-          <option key={choice} value={choice}>
-            {LABELS[choice]}
-          </option>
-        ))}
-      </select>
-    </label>
+    <button
+      type="button"
+      onClick={() => applyTheme(NEXT[theme])}
+      aria-label={`Theme: ${theme}. Switch to ${NEXT[theme]}.`}
+      title={`Theme: ${theme}`}
+      className="inline-flex h-6 w-6 items-center justify-center rounded-sm border border-control-border text-muted hover:text-text"
+    >
+      <Icon size={14} aria-hidden="true" />
+    </button>
   )
 }

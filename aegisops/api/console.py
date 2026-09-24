@@ -27,8 +27,10 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from aegisops.api.auth import Principal, require_viewer
 from aegisops.core.config import Settings
+from aegisops.domain.models import Scenario
+from aegisops.geodata.labels import Labeller
 from aegisops.llm.client import LLMClient
-from backend.db.models import Alert, Approval, Decision, Event, Exercise, FeedPoll
+from backend.db.models import Alert, Approval, Decision, Event, Exercise, Facility, FeedPoll
 
 FEEDS = ("sachet", "usgs", "gdacs")
 STALE_AFTER_INTERVALS = 3
@@ -243,10 +245,27 @@ def console_router(
     settings: Settings,
     llm: LLMClient,
     tickets: TicketBook,
+    labeller: Labeller,
     *,
     stream_poll_s: float = 1.0,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
+
+    @router.post("/labels", tags=["console"])
+    def labels(
+        scenario: Scenario, principal: Annotated[Principal, Depends(require_viewer)]
+    ) -> dict[str, dict[str, str | None]]:
+        """Display names: nearest OSM place for incidents, OSM facility name for units."""
+        del principal
+        with session_factory() as session:
+            names = {
+                (osm_type, osm_id): name
+                for osm_type, osm_id, name in session.execute(
+                    select(Facility.osm_type, Facility.osm_id, Facility.name)
+                )
+                if name
+            }
+        return labeller.labels(scenario, names)
 
     @router.get("/status", tags=["console"])
     def get_status(principal: Annotated[Principal, Depends(require_viewer)]) -> dict[str, Any]:
@@ -272,6 +291,7 @@ def console_router(
     def list_decisions(
         principal: Annotated[Principal, Depends(require_viewer)],
         status_filter: Annotated[str | None, Query(alias="status")] = None,
+        scenario_id: str | None = None,
         pending: bool = False,
         limit: Annotated[int, Query(ge=1, le=200)] = 50,
     ) -> list[dict[str, Any]]:
@@ -280,6 +300,8 @@ def console_router(
             query = select(Decision).order_by(Decision.id.desc()).limit(limit)
             if status_filter:
                 query = query.where(Decision.status == status_filter)
+            if scenario_id:
+                query = query.where(Decision.scenario_id == scenario_id)
             if pending:
                 query = query.where(
                     Decision.status == "requires_human_approval",

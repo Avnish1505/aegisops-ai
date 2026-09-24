@@ -153,3 +153,37 @@ def test_stream_sends_ready_then_new_events_as_sse_frames() -> None:
     assert names == ["event: decision.created", "event: decision.verified"]
     assert all(f.endswith("\n\n") for f in frames)
 
+
+
+def test_labels_name_incidents_by_reported_place_and_units_by_facility() -> None:
+    import json
+    from pathlib import Path
+
+    from backend.db.models import Facility
+
+    exercise = json.loads(
+        (Path(__file__).parents[1] / "evals" / "data" / "lucknow_exercise_v1.json").read_text()
+    )
+    client = _app()
+    with _sessions(client)() as session, session.begin():
+        session.add(Facility(osm_type="node", osm_id=6621697164, kind="hospital",
+                             name="Test District Hospital", location=(26.84, 80.94), tags={}))
+
+    labels = client.post("/api/v1/labels", json=exercise, headers=bearer("v", "viewer")).json()
+
+    assert labels["incidents"]["INC-LKO-01"] == "Charbagh"
+    # The nearest OSM place is "Sector - 15"; the report names Indira Nagar, 2 km or less away.
+    assert labels["incidents"]["INC-LKO-16"] == "Indira Nagar"
+    assert labels["units"]["RES-AMB-n6621697164-1"] == "Test District Hospital"
+
+
+def test_decisions_filter_by_scenario() -> None:
+    client = _app()
+    operator = bearer("olive", "operator")
+    made = client.post("/api/v1/decisions", json={"seed": 3}, headers=operator).json()
+    client.post("/api/v1/decisions", json={"seed": 4}, headers=operator)
+
+    rows = client.get(f"/api/v1/decisions?scenario_id={made['scenario_id']}",
+                      headers=operator).json()
+
+    assert {row["scenario_id"] for row in rows} == {made["scenario_id"]}

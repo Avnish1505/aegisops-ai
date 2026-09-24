@@ -48,8 +48,11 @@ const TOKEN_PATH: Record<AuthMode, string | null> = {
 
 const STORAGE_KEY = 'aegisops.identity'
 const listeners = new Set<() => void>()
+// Dev and demo start signed in as the first identity (the operator) unless the viewer chose.
 let current: Identity | null =
-  IDENTITIES[AUTH_MODE].find((identity) => identity.sub === load(STORAGE_KEY)) ?? null
+  IDENTITIES[AUTH_MODE].find((identity) => identity.sub === load(STORAGE_KEY)) ??
+  IDENTITIES[AUTH_MODE][0] ??
+  null
 const tokens = new Map<string, { token: string; expiresAt: number }>()
 
 export function currentIdentity(): Identity | null {
