@@ -10,6 +10,7 @@ import { Audit } from './features/audit/Audit'
 import { Evals } from './features/evals/Evals'
 import { OpsBoard } from './features/ops/OpsBoard'
 import { PlanReview } from './features/plan/PlanReview'
+import { StudyHome, StudyRunner } from './features/study/Study'
 import { Triage } from './features/triage/Triage'
 import { NotFound, RootLayout } from './components/shell/RootLayout'
 
@@ -44,9 +45,27 @@ const planRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/plans/$decisionId',
   params: decisionIdParams,
+  validateSearch: (search: Record<string, unknown>): { study?: number } =>
+    typeof search.study === 'number' ? { study: search.study } : {},
   component: function PlanRoute() {
     const { decisionId } = planRoute.useParams()
-    return <PlanReview decisionId={decisionId} />
+    const { study } = planRoute.useSearch()
+    return <PlanReview decisionId={decisionId} studySession={study} />
+  },
+})
+
+const studyRoute = createRoute({ getParentRoute: () => rootRoute, path: '/study', component: StudyHome })
+
+const studyRunnerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/study/$sessionId',
+  params: {
+    parse: (params: { sessionId: string }) => ({ sessionId: Number(params.sessionId) }),
+    stringify: (params: { sessionId: number }) => ({ sessionId: String(params.sessionId) }),
+  },
+  component: function StudyRunnerRoute() {
+    const { sessionId } = studyRunnerRoute.useParams()
+    return <StudyRunner sessionId={sessionId} />
   },
 })
 
@@ -77,7 +96,9 @@ const evalsRoute = createRoute({
   component: Evals,
 })
 
-const routeTree = rootRoute.addChildren([opsRoute, planRoute, triageRoute, auditRoute, evalsRoute])
+const routeTree = rootRoute.addChildren([
+  opsRoute, planRoute, triageRoute, auditRoute, evalsRoute, studyRoute, studyRunnerRoute,
+])
 
 export function createAppRouter(queryClient: QueryClient, history?: RouterHistory) {
   return createRouter({ routeTree, history, context: { queryClient }, defaultPreload: 'intent' })

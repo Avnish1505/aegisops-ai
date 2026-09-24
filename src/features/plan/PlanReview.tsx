@@ -12,7 +12,7 @@ import { EvidencePanel, type QuotesByIncident } from './EvidencePanel'
 import { SitrepDraft } from './SitrepDraft'
 import { VerifierChecklist } from './VerifierChecklist'
 
-export function PlanReview({ decisionId }: { decisionId: number }) {
+export function PlanReview({ decisionId, studySession }: { decisionId: number; studySession?: number }) {
   const decision = useDecision(decisionId)
   const labels = useLabels(decision.data?.scenario).data
   // Incidents confirmed in triage carry the model's quotes; seeded exercise injects have none.
@@ -29,6 +29,15 @@ export function PlanReview({ decisionId }: { decisionId: number }) {
   return (
     <div className="flex h-full flex-col">
       <div className="min-h-0 flex-1 overflow-auto">
+        {studySession !== undefined && (
+          <div className="border-b border-divider bg-raised px-4 py-1 text-sm">
+            Study task. After you record your decision,{' '}
+            <Link to="/study/$sessionId" params={{ sessionId: studySession }} className="underline">
+              return to the study
+            </Link>
+            .
+          </div>
+        )}
         <header className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-divider bg-surface px-4 py-2">
           <h1 className="text-lg font-semibold">
             Plan <span className="font-mono">{plan.decision_id}</span>
