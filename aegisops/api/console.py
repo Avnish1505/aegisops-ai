@@ -49,6 +49,11 @@ SSE_EVENT_NAMES = {
     "disposition_recorded": "disposition.recorded",
     "drafts_generated": "drafts.generated",
     "reverification_run": "decision.reverified",
+    "intake_received": "intake.updated",
+    "intake_read": "intake.read",
+    "intake_confirmed": "intake.updated",
+    "intake_dismissed": "intake.updated",
+    "intake_merged": "intake.updated",
 }
 
 

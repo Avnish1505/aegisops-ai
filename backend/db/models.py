@@ -266,6 +266,31 @@ class Exercise(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class IntakeReport(Base):
+    """A free-text field report, the model's grounded reading of it, and the operator's review."""
+
+    __tablename__ = "intake_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(String(32), nullable=False)  # operator | demo_seed
+    # unread | needs_review | ready | confirmed | merged | dismissed
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    candidate: Mapped[dict[str, object] | None] = mapped_column(JSON)
+    read_meta: Mapped[dict[str, object] | None] = mapped_column(JSON)  # model, prompt, tokens
+    review_reasons: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    confirmed_fields: Mapped[dict[str, object] | None] = mapped_column(JSON)
+    edited_fields: Mapped[list[str] | None] = mapped_column(JSON)
+    reviewed_by: Mapped[str | None] = mapped_column(String(255))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    merged_into: Mapped[int | None] = mapped_column(ForeignKey("intake_reports.id"))
+    incident_id: Mapped[str | None] = mapped_column(String(64))
+    exercise_id: Mapped[str | None] = mapped_column(String(64))
+
+    __table_args__ = (Index("idx_intake_status", "status"),)
+
+
 class FeedPoll(Base):
     """One poll of a hazard feed by the worker, including failures, for feed health."""
 

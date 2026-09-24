@@ -27,11 +27,11 @@ from aegisops.api.auth import (
     require_viewer,
 )
 from aegisops.api.console import TicketBook, alert_areas, console_router
+from aegisops.api.intake_api import intake_router
 from aegisops.api.schemas import (
     DecisionDispositionRequest,
     DevTokenRequest,
     ErrorResponse,
-    ReadReportRequest,
     ScenarioDecisionRequest,
     TranslateNoteRequest,
 )
@@ -56,7 +56,7 @@ from aegisops.infrastructure.retrieval_engine import RetrievalEngine
 from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
 from aegisops.intake.constraints import ConstraintTranslator
 from aegisops.intake.gazetteer import DEFAULT_GAZETTEER, Gazetteer
-from aegisops.intake.reader import Reader, to_incident
+from aegisops.intake.reader import Reader
 from aegisops.llm.client import LLMClient, LLMError, LLMOutputError
 from aegisops.planning.osrm import OSRMProvider
 from aegisops.planning.travel import StraightLineProvider, TravelTimeMatrix, TravelTimeProvider
@@ -210,41 +210,7 @@ def create_app(
                 detail="No LLM is configured (set AEGISOPS_LLM_API_KEY).",
             )
 
-    @app.post("/api/v1/intake/read", tags=["intake"])
-    async def read_report(
-        request: Request,
-        response: Response,
-        request_body: ReadReportRequest,
-        principal: Annotated[Principal, Depends(require_operator)],
-    ) -> dict[str, object]:
-        """Free-text report -> grounded incident candidate (nothing is planned or stored)."""
-        del principal
-        require_llm()
-        with step_span("read") as span:
-            try:
-                result = reader.read(request_body.report)
-            except (LLMError, LLMOutputError) as error:
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Reader failed: {error}"
-                ) from error
-            span.set_attribute("aegisops.fields_dropped", len(result.candidate.dropped))
-            traceparent = current_traceparent()
-        incident = to_incident(result.candidate, "INC-preview")
-        if traceparent:
-            response.headers["traceparent"] = traceparent
-        return {
-            "traceparent": traceparent,
-            "candidate": result.candidate.model_dump(mode="json"),
-            "incident_preview": incident.model_dump(mode="json") if incident else None,
-            "llm": {
-                "model": result.record.model,
-                "prompt_version": result.record.prompt_version,
-                "input_tokens": result.record.input_tokens,
-                "output_tokens": result.record.output_tokens,
-                "latency_s": round(result.record.latency_s, 3),
-                "cost_usd": result.record.cost_usd,
-            },
-        }
+    app.include_router(intake_router(session_factory, reader, require_llm))
 
     @app.post("/api/v1/constraints/translate", tags=["intake"])
     async def translate_constraint(

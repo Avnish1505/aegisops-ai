@@ -23,6 +23,7 @@ PY
   fi
   python scripts/import_facilities.py "$OSM_EXTRACT"
   python scripts/seed_lucknow_exercise.py "$OSM_EXTRACT" --record-decision
+  python scripts/seed_demo_intake.py
 else
   echo "No OSM extract at '${OSM_EXTRACT:-}'. Run scripts/osrm_prepare.sh for the Lucknow" \
        "exercise; seeding a synthetic decision instead." >&2
