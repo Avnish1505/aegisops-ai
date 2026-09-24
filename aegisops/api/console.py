@@ -56,6 +56,7 @@ SSE_EVENT_NAMES = {
     "intake_confirmed": "intake.updated",
     "intake_dismissed": "intake.updated",
     "intake_merged": "intake.updated",
+    "study_session_created": "study.updated",
 }
 
 
