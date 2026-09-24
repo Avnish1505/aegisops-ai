@@ -262,6 +262,22 @@ class Exercise(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class FeedPoll(Base):
+    """One poll of a hazard feed by the worker, including failures, for feed health."""
+
+    __tablename__ = "feed_polls"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    polled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)
+    fetched: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    inserted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (Index("idx_feed_poll_source_time", "source", "polled_at"),)
+
+
 class Alert(Base):
     """A hazard alert ingested from a public feed, stored with the payload exactly as fetched."""
 

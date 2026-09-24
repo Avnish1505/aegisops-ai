@@ -26,6 +26,7 @@ from aegisops.api.auth import (
     require_operator,
     require_viewer,
 )
+from aegisops.api.console import TicketBook, console_router
 from aegisops.api.schemas import (
     DecisionDispositionRequest,
     DevTokenRequest,
@@ -182,6 +183,9 @@ def create_app(
         travel_provider or _default_travel_provider(active_settings),
     )
 
+    app.include_router(
+        console_router(session_factory, active_settings, llm, TicketBook())
+    )
     gazetteer = Gazetteer.load(DEFAULT_GAZETTEER)
     reader = Reader(llm, gazetteer)
     translator = ConstraintTranslator(llm, gazetteer)

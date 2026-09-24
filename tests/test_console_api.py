@@ -1,0 +1,155 @@
+"""Console read endpoints and the SSE stream."""
+
+import asyncio
+from datetime import UTC, datetime, timedelta
+
+import pytest
+from auth_helpers import bearer
+from fastapi.testclient import TestClient
+
+from aegisops.api.app import create_app
+from aegisops.api.console import (
+    TicketBook,
+    current_cursor,
+    feed_health,
+    new_messages,
+    stream_messages,
+)
+from aegisops.core.config import Settings
+from backend.db.models import FeedPoll
+
+
+def _app() -> TestClient:
+    return TestClient(create_app(Settings(environment="test", database_url="sqlite://")))
+
+
+def _sessions(client: TestClient):  # type: ignore[no-untyped-def]
+    return client.app.state.session_factory  # type: ignore[attr-defined]
+
+
+def test_status_reports_feeds_model_and_pending_approvals() -> None:
+    client = _app()
+    operator, approver = bearer("olive", "operator"), bearer("bob", "approver")
+    first = client.post("/api/v1/decisions", json={"seed": 3}, headers=operator).json()
+    client.post("/api/v1/decisions", json={"seed": 4}, headers=operator)
+    client.post(f"/api/v1/decisions/{first['decision_id']}/disposition",
+                json={"action": "reject", "reason": "test"}, headers=approver)
+
+    body = client.get("/api/v1/status", headers=bearer("v", "viewer")).json()
+
+    assert [f["state"] for f in body["feeds"]] == ["no_data", "no_data", "no_data"]
+    assert body["model"]["configured"] is False
+    pending = client.get("/api/v1/decisions?pending=true", headers=operator).json()
+    assert body["pending_approvals"] == len(pending)
+    assert first["decision_id"] not in {d["decision_id"] for d in pending}
+
+
+def test_status_needs_a_token() -> None:
+    assert _app().get("/api/v1/status").status_code == 401
+
+
+@pytest.mark.parametrize(
+    ("polls", "state"),
+    [
+        ([(0, True)], "ok"),
+        ([(60, True)], "stale"),  # 60 min > 3 x 5 min interval
+        ([(0, True), (-1, False)], "failing"),  # the newest poll failed
+    ],
+)
+def test_feed_health_states(polls: list[tuple[int, bool]], state: str) -> None:
+    client = _app()
+    now = datetime(2026, 9, 24, 12, 0, tzinfo=UTC)
+    with _sessions(client)() as session, session.begin():
+        for minutes_ago, ok in polls:
+            session.add(FeedPoll(source="sachet", polled_at=now - timedelta(minutes=minutes_ago),
+                                 ok=ok, error=None if ok else "boom", fetched=0, inserted=0))
+    with _sessions(client)() as session:
+        sachet = feed_health(session, Settings(environment="test"), now)[0]
+
+    assert sachet["state"] == state
+
+
+def test_decision_list_filters_and_summarises() -> None:
+    client = _app()
+    operator = bearer("olive", "operator")
+    made = client.post("/api/v1/decisions", json={"seed": 3}, headers=operator).json()
+
+    rows = client.get("/api/v1/decisions", headers=operator).json()
+    blocked = client.get("/api/v1/decisions?status=blocked", headers=operator).json()
+
+    assert rows[0]["decision_id"] == made["decision_id"]
+    assert rows[0]["proposer_sub"] == "olive"
+    assert rows[0]["disposition"] is None
+    assert all(row["status"] == "blocked" for row in blocked)
+
+
+def test_events_filter_by_decision_newest_first() -> None:
+    client = _app()
+    operator = bearer("olive", "operator")
+    one = client.post("/api/v1/decisions", json={"seed": 3}, headers=operator).json()
+    client.post("/api/v1/decisions", json={"seed": 4}, headers=operator)
+
+    events = client.get(f"/api/v1/events?decision_id={one['decision_id']}",
+                        headers=operator).json()
+
+    assert [e["type"] for e in events] == ["verification_completed", "decision_created"]
+    assert events[0]["prev_hash"] == events[1]["hash"]
+
+
+def test_stream_tickets_are_single_use_and_expire() -> None:
+    now = [0.0]
+    book = TicketBook(ttl_s=30, clock=lambda: now[0])
+    first, second = book.issue("olive"), book.issue("olive")
+
+    assert book.redeem(first) == "olive"
+    assert book.redeem(first) is None
+    now[0] = 31
+    assert book.redeem(second) is None
+    assert book.redeem("made-up") is None
+
+
+def test_stream_rejects_a_bad_ticket_and_issues_real_ones_to_signed_in_users() -> None:
+    client = _app()
+
+    assert client.get("/api/v1/stream?ticket=nope").status_code == 401
+    assert client.post("/api/v1/stream/ticket").status_code == 401
+    issued = client.post("/api/v1/stream/ticket", headers=bearer()).json()
+    assert issued["expires_in"] == 30 and len(issued["ticket"]) > 20
+
+
+def test_new_messages_name_audit_events_and_advance_the_cursor() -> None:
+    client = _app()
+    with _sessions(client)() as session:
+        cursor = current_cursor(session)
+    client.post("/api/v1/decisions", json={"seed": 3}, headers=bearer())
+
+    with _sessions(client)() as session:
+        first = new_messages(session, cursor)
+        again = new_messages(session, cursor)
+
+    assert [name for _, name, _ in first] == ["decision.created", "decision.verified"]
+    assert again == []
+
+
+def test_stream_sends_ready_then_new_events_as_sse_frames() -> None:
+    client = _app()
+    sessions = _sessions(client)
+    checks = {"n": 0}
+
+    async def disconnected() -> bool:
+        checks["n"] += 1
+        if checks["n"] == 1:
+            # Something happens after the client connected.
+            client.post("/api/v1/decisions", json={"seed": 3}, headers=bearer())
+        return checks["n"] > 2
+
+    async def collect() -> list[str]:
+        return [frame async for frame in stream_messages(sessions, disconnected, poll_s=0)]
+
+    frames = asyncio.run(collect())
+
+    assert frames[0].startswith("id: ready\nevent: ready\n")
+    names = [f.split("\n")[1] for f in frames[1:]]
+    assert names == ["event: decision.created", "event: decision.verified"]
+    assert all(f.endswith("\n\n") for f in frames)
+
