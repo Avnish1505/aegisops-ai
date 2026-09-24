@@ -15,12 +15,12 @@ from datetime import UTC, datetime
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
-from aegisops.api.app import _default_travel_provider
 from aegisops.application.decision_service import DecisionService
 from aegisops.core.config import REPOSITORY_ROOT, Settings
 from aegisops.domain.models import Scenario
 from aegisops.geodata.exercise import EXERCISE_DESCRIPTION, EXERCISE_ID, EXERCISE_NAME
 from aegisops.infrastructure.decision_store import record_decision
+from aegisops.planning.providers import default_travel_provider
 from backend.db.models import Decision, Exercise
 
 SNAPSHOT = REPOSITORY_ROOT / "evals" / "data" / "lucknow_exercise_v1.json"
@@ -46,7 +46,7 @@ def seed_from_snapshot(settings: Settings | None = None) -> int | None:
             select(Decision).where(Decision.scenario_sha256 == scenario.sha256())
         ).first() is not None:
             return None
-    outcome = DecisionService({}, _default_travel_provider(active)).decide(scenario)
+    outcome = DecisionService({}, default_travel_provider(active)).decide(scenario)
     with sessions.begin() as session:
         return record_decision(session, scenario, outcome, proposer=PROPOSER).id
 

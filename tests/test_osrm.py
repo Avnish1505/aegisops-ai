@@ -172,7 +172,7 @@ def test_api_shows_the_degraded_flag_when_osrm_is_down() -> None:
 
 
 def test_settings_select_osrm_when_a_url_is_configured() -> None:
-    from aegisops.api.app import _default_travel_provider
+    from aegisops.planning.providers import default_travel_provider
 
-    assert isinstance(_default_travel_provider(Settings(osrm_url=BASE)), OSRMProvider)
-    assert isinstance(_default_travel_provider(Settings()), StraightLineProvider)
+    assert isinstance(default_travel_provider(Settings(osrm_url=BASE)), OSRMProvider)
+    assert isinstance(default_travel_provider(Settings()), StraightLineProvider)

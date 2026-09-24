@@ -21,7 +21,6 @@ from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from aegisops.api.app import _default_travel_provider  # noqa: E402
 from aegisops.application.decision_service import DecisionService  # noqa: E402
 from aegisops.core.config import Settings  # noqa: E402
 from aegisops.domain.models import Location, Resource, ResourceType, Scenario  # noqa: E402
@@ -33,6 +32,7 @@ from aegisops.geodata.exercise import (  # noqa: E402
 )
 from aegisops.geodata.osm import read_extract  # noqa: E402
 from aegisops.infrastructure.decision_store import record_decision  # noqa: E402
+from aegisops.planning.providers import default_travel_provider  # noqa: E402
 from backend.db.models import Decision, Exercise, Unit  # noqa: E402
 
 
@@ -73,7 +73,7 @@ def seed_exercise(
             select(Decision.id).where(Decision.scenario_sha256 == scenario.sha256()).limit(1)
         )
         if record and already_planned is None:
-            provider = _default_travel_provider(settings or Settings())
+            provider = default_travel_provider(settings or Settings())
             outcome = DecisionService({}, provider).decide(scenario)
             decision_id = record_decision(session, scenario, outcome, proposer="exercise-seed").id
     return scenario, decision_id

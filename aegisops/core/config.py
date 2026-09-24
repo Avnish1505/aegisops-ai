@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     )
     otel_service_name: str = "aegisops-api"
 
+    # Public demo (AEGISOPS_ENVIRONMENT=demo): a resettable exercise sandbox with fixed identities.
+    demo_reset_interval_min: int = 60
+    demo_token_ttl_s: int = 2 * 60 * 60
+
     # Committed evaluation outputs (reports/*.json) served to the console's Evals page.
     reports_dir: Path = REPOSITORY_ROOT / "reports"
 

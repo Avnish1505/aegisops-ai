@@ -17,6 +17,7 @@ export interface StatusResponse {
   model: { configured: boolean; model: string; provider: string }
   pending_approvals: number
   exercise: { id: string; name: string; started_at: string | null } | null
+  demo: { interval_min: number; last_reset_at: string; next_reset_at: string } | null
 }
 
 export interface DecisionSummary {

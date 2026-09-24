@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useStatus } from '../../api/queries'
 import type { FeedHealth } from '../../api/types'
 import { useLiveState, type LiveState } from '../../lib/stream'
-import { age } from '../../lib/time'
+import { age, istClock } from '../../lib/time'
 
 const FEED_NAME: Record<FeedHealth['source'], string> = { sachet: 'SACHET', usgs: 'USGS', gdacs: 'GDACS' }
 
@@ -67,6 +67,11 @@ export function SystemStatus() {
         </span>
       )}
       <span className={`text-sm ${live === 'reconnecting' ? 'font-semibold text-high' : 'text-muted'}`}>{LIVE_TEXT[live]}</span>
+      {data?.demo && (
+        <span className="text-sm text-muted" title="Public demo: everything visitors change is wiped and the exercise re-seeded">
+          Sandbox · resets {istClock(new Date(data.demo.next_reset_at)).slice(0, 5)} IST
+        </span>
+      )}
     </div>
   )
 }

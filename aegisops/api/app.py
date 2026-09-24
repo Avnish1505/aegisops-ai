@@ -27,6 +27,7 @@ from aegisops.api.auth import (
     require_viewer,
 )
 from aegisops.api.console import TicketBook, alert_areas, console_router
+from aegisops.api.demo import DemoClock, demo_router, start_reset_schedule
 from aegisops.api.intake_api import intake_router
 from aegisops.api.schemas import (
     DecisionDispositionRequest,
@@ -58,10 +59,11 @@ from aegisops.intake.constraints import ConstraintTranslator
 from aegisops.intake.gazetteer import DEFAULT_GAZETTEER, Gazetteer
 from aegisops.intake.reader import Reader
 from aegisops.llm.client import LLMClient, LLMError, LLMOutputError
-from aegisops.planning.osrm import OSRMProvider
-from aegisops.planning.travel import StraightLineProvider, TravelTimeMatrix, TravelTimeProvider
+from aegisops.planning.providers import default_travel_provider
+from aegisops.planning.travel import TravelTimeMatrix, TravelTimeProvider
 from aegisops.telemetry import configure_tracing, current_traceparent, step_span
 from backend.db.models import Alert, Approval, Base, Decision, Exercise, User
+from backend.demo_reset import reset_demo
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +184,7 @@ def create_app(
         )
 
     llm = llm_client or LLMClient(active_settings)
-    travel = travel_provider or _default_travel_provider(active_settings)
+    travel = travel_provider or default_travel_provider(active_settings)
     decision_service = DecisionService(
         {
             "rule_based": RuleBasedDecisionEngine(),
@@ -194,9 +196,14 @@ def create_app(
     )
 
     gazetteer = Gazetteer.load(DEFAULT_GAZETTEER)
+    demo_clock = (
+        DemoClock(active_settings.demo_reset_interval_min)
+        if active_settings.environment == "demo" else None
+    )
     app.include_router(
         console_router(
-            session_factory, active_settings, llm, TicketBook(), Labeller(gazetteer), travel
+            session_factory, active_settings, llm, TicketBook(), Labeller(gazetteer), travel,
+            demo=demo_clock,
         )
     )
     reader = Reader(llm, gazetteer)
@@ -479,6 +486,11 @@ def create_app(
                     "timestamp": event.ts,
                 }
 
+    if active_settings.environment == "demo":
+        app.include_router(demo_router(active_settings, limiter.limit(active_settings.rate_limit)))
+        if demo_clock is not None and active_settings.demo_reset_interval_min > 0:
+            app.state.demo_scheduler = start_reset_schedule(active_settings, demo_clock, reset_demo)
+
     if active_settings.environment == "development":
 
         @app.post("/api/v1/dev/token", tags=["development"])
@@ -504,8 +516,3 @@ def create_app(
 
     return app
 
-
-def _default_travel_provider(settings: Settings) -> TravelTimeProvider:
-    if settings.osrm_url:
-        return OSRMProvider(settings.osrm_url, profile=settings.osrm_profile)
-    return StraightLineProvider()

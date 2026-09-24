@@ -27,6 +27,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from aegisops.api.auth import Principal, require_viewer
+from aegisops.api.demo import DemoClock
 from aegisops.application.dispositions import REASONS
 from aegisops.application.replay import baseline, reverify
 from aegisops.audit.event_log import append_event
@@ -305,6 +306,7 @@ def console_router(
     labeller: Labeller,
     travel: TravelTimeProvider,
     *,
+    demo: DemoClock | None = None,
     stream_poll_s: float = 1.0,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
@@ -366,6 +368,7 @@ def console_router(
                     "id": exercise.id, "name": exercise.name,
                     "started_at": _iso(exercise.created_at),
                 },
+                "demo": demo.as_dict() if demo is not None else None,
             }
 
     @router.get("/decisions", tags=["decisions"])
