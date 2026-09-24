@@ -18,6 +18,7 @@ def record_decision(
     outcome: DecisionOutcome,
     proposer: str,
     trace_parent: str | None = None,
+    constraint_sources: list[dict[str, object] | None] | None = None,
 ) -> Decision:
     """Store the full decision record and append its creation and verification events."""
     result = outcome.result
@@ -41,6 +42,7 @@ def record_decision(
         verification=outcome.verification.model_dump(mode="json"),
         drafts=[draft.model_dump(mode="json") for draft in outcome.drafts],
         constraints=[item.model_dump(mode="json") for item in outcome.constraints],
+        constraint_sources=constraint_sources or [None] * len(outcome.constraints),
         travel_times=outcome.travel_times.model_dump(mode="json"),
         objective=plan_objective(
             result.assignments,
@@ -112,6 +114,8 @@ def serialize_decision(decision: Decision) -> dict[str, object]:
         "verification": decision.verification,
         "drafts": decision.drafts,
         "constraints": decision.constraints,
+        "constraint_sources": decision.constraint_sources
+        or [None] * len(decision.constraints or []),
         "objective": decision.objective,
         "reference_objective": decision.reference_objective,
         "solve_status": decision.solve_status,

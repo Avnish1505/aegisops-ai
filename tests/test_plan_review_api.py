@@ -143,3 +143,20 @@ def test_validation_errors_name_the_field_but_never_echo_submitted_values() -> N
     assert response.json()["errors"][0]["message"].startswith("'SECRET-CODE-123' is not")
     # The code is quoted back by our own message; the raw input field is not.
     assert "input" not in response.json()["errors"][0]
+
+
+def test_constraint_sources_are_stored_next_to_their_constraints() -> None:
+    client = _client()
+    first = _decision(client)
+    unit = first["assignments"][0]["resource_id"]
+    source = {"note": f"{unit} ko rok ke rakho", "quote": "rok ke rakho"}
+
+    made = _decision(client, scenario=first["scenario"],
+                     constraints=[{"kind": "exclude_unit", "unit_id": unit}],
+                     constraint_sources=[source])
+    mismatched = client.post("/api/v1/decisions", headers=OPERATOR, json={
+        "scenario": first["scenario"], "constraints": [], "constraint_sources": [source]})
+
+    assert made["constraint_sources"] == [source]
+    assert first["constraint_sources"] == []
+    assert mismatched.status_code == 422

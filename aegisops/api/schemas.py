@@ -12,6 +12,15 @@ from aegisops.domain.models import Scenario
 from aegisops.planning.constraints import PlanningConstraint
 
 
+class ConstraintSource(BaseModel):
+    """Where a confirmed constraint came from: the operator's note and the quote it rests on."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    note: Annotated[str, Field(min_length=1, max_length=1_000)]
+    quote: Annotated[str | None, Field(max_length=500)] = None
+
+
 class ScenarioDecisionRequest(BaseModel):
     """Accept an explicit validated scenario or request a generated seeded scenario."""
 
@@ -23,6 +32,16 @@ class ScenarioDecisionRequest(BaseModel):
     constraints: Annotated[list[PlanningConstraint], Field(max_length=100)] = Field(
         default_factory=list
     )
+    # One entry per constraint (None for constraints typed directly); stored for review only.
+    constraint_sources: Annotated[list[ConstraintSource | None], Field(max_length=100)] = Field(
+        default_factory=list
+    )
+
+    @model_validator(mode="after")
+    def _sources_match_constraints(self) -> ScenarioDecisionRequest:
+        if self.constraint_sources and len(self.constraint_sources) != len(self.constraints):
+            raise ValueError("constraint_sources needs one entry per constraint")
+        return self
 
 
 class DecisionDispositionRequest(BaseModel):

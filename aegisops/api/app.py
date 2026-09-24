@@ -362,6 +362,10 @@ def create_app(
                 decision = record_decision(
                     session, scenario, outcome, proposer=principal.sub,
                     trace_parent=current_traceparent(),
+                    constraint_sources=[
+                        source.model_dump() if source else None
+                        for source in request_body.constraint_sources
+                    ],
                 )
                 span.set_attributes({"aegisops.decision_id": decision.id,
                                      "aegisops.status": decision.status})

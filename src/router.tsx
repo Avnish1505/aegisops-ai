@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-router'
 import { lazy } from 'react'
 import { OpsBoard } from './features/ops/OpsBoard'
+import { PlanReview } from './features/plan/PlanReview'
 import { NotFound, RootLayout } from './components/shell/RootLayout'
 import { Pending } from './routes/Pending'
 
@@ -36,7 +37,10 @@ const planRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/plans/$decisionId',
   params: decisionIdParams,
-  component: () => <Pending title="Plan review" />,
+  component: function PlanRoute() {
+    const { decisionId } = planRoute.useParams()
+    return <PlanReview decisionId={decisionId} />
+  },
 })
 
 const triageRoute = createRoute({

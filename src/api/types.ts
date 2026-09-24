@@ -1,4 +1,4 @@
-import type { Assignment, Decision, Scenario } from '../types'
+import type { Assignment, Decision, PlanningConstraint, Scenario, VerificationReport } from '../types'
 
 export type FeedState = 'ok' | 'stale' | 'failing' | 'no_data'
 
@@ -60,9 +60,11 @@ export interface StoredDecision extends Decision {
   proposer_sub: string | null
   created_at: string
   travel_times: TravelTimeMatrix
-  constraints: unknown[]
+  constraints: PlanningConstraint[]
+  evidence: { id: string; description: string; source: string; confidence: number }[]
+  constraint_sources: ({ note: string; quote: string | null } | null)[]
   traceparent: string | null
-  approvals: { disposition_id: number; action: 'approve' | 'reject'; actor: string; timestamp: string }[]
+  approvals: { disposition_id: number; action: 'approve' | 'reject'; reason_code: string | null; actor: string; timestamp: string }[]
 }
 
 export type { Assignment }
@@ -92,4 +94,39 @@ export interface AlertSummary {
   area_desc: string | null
   location: { lat: number; lon: number } | null
   areas: AlertArea[]
+}
+
+export interface Baseline {
+  decision_id: number
+  constraints: number
+  status: string
+  assignments: Assignment[]
+  unmet_requirements: Decision['unmet_requirements']
+  objective: number
+  plan_objective: number
+  only_in_plan: { incident_id: string; resource_id: string }[]
+  only_in_baseline: { incident_id: string; resource_id: string }[]
+  same_as_plan: boolean
+}
+
+export interface Reverification {
+  decision_id: number
+  matches: boolean
+  same_verdict: boolean
+  differing_checks: string[]
+  stored: VerificationReport
+  recomputed: VerificationReport
+  scenario_sha256: string
+  scenario_sha256_matches: boolean
+  event_id: number
+}
+
+export type ReasonCodes = Record<'approve' | 'reject', Record<string, string>>
+
+export interface DispositionResult {
+  decision_id: number
+  disposition_id: number
+  action: 'approve' | 'reject'
+  reason_code: string
+  timestamp: string
 }

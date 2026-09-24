@@ -1,7 +1,20 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/http'
 import type { PlanningConstraint, Scenario } from '../types'
-import type { AlertSummary, AuditEvent, DecisionSummary, Labels, RouteGeometry, StatusResponse, StoredDecision } from './types'
+import type { ConstraintProposal, ReportDrafts } from '../types'
+import type {
+  AlertSummary,
+  AuditEvent,
+  Baseline,
+  DecisionSummary,
+  DispositionResult,
+  Labels,
+  ReasonCodes,
+  Reverification,
+  RouteGeometry,
+  StatusResponse,
+  StoredDecision,
+} from './types'
 
 export const keys = {
   status: ['status'] as const,
@@ -73,10 +86,19 @@ export function useLabels(scenario: Scenario | undefined) {
 export function usePlan() {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: (input: { scenario: Scenario; constraints?: PlanningConstraint[]; traceparent?: string }) =>
+    mutationFn: (input: {
+      scenario: Scenario
+      constraints?: PlanningConstraint[]
+      constraintSources?: ({ note: string; quote: string | null } | null)[]
+      traceparent?: string
+    }) =>
       api<StoredDecision>('/api/v1/decisions', {
         method: 'POST',
-        body: { scenario: input.scenario, constraints: input.constraints ?? [] },
+        body: {
+          scenario: input.scenario,
+          constraints: input.constraints ?? [],
+          constraint_sources: input.constraintSources ?? [],
+        },
         headers: input.traceparent ? { traceparent: input.traceparent } : undefined,
       }),
     onSuccess: (decision) => {
@@ -100,5 +122,57 @@ export function useAlerts() {
   return useQuery({
     queryKey: keys.alerts,
     queryFn: () => api<AlertSummary[]>('/api/v1/alerts?source=sachet&limit=100', { auth: false }),
+  })
+}
+
+export function useBaseline(decisionId: number | undefined) {
+  return useQuery({
+    queryKey: ['baseline', decisionId],
+    queryFn: () => api<Baseline>(`/api/v1/decisions/${decisionId}/baseline`),
+    enabled: decisionId !== undefined,
+    staleTime: Infinity,
+  })
+}
+
+export function useReasonCodes() {
+  return useQuery({
+    queryKey: ['reason-codes'],
+    queryFn: () => api<ReasonCodes>('/api/v1/reason-codes', { auth: false }),
+    staleTime: Infinity,
+  })
+}
+
+export function useDisposition(decisionId: number) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { action: 'approve' | 'reject'; reason_code: string; reason?: string }) =>
+      api<DispositionResult>(`/api/v1/decisions/${decisionId}/disposition`, { method: 'POST', body: input }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.decision(decisionId) })
+      void client.invalidateQueries({ queryKey: ['decisions'] })
+      void client.invalidateQueries({ queryKey: keys.status })
+      void client.invalidateQueries({ queryKey: ['events'] })
+    },
+  })
+}
+
+export function useDrafts(decisionId: number) {
+  return useMutation({
+    mutationFn: () => api<ReportDrafts>(`/api/v1/decisions/${decisionId}/drafts`, { method: 'POST' }),
+  })
+}
+
+export function useTranslate() {
+  return useMutation({
+    mutationFn: (input: { note: string; scenario: Scenario }) =>
+      api<ConstraintProposal>('/api/v1/constraints/translate', { method: 'POST', body: input }),
+  })
+}
+
+export function useReverify(decisionId: number) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: () => api<Reverification>(`/api/v1/decisions/${decisionId}/reverify`, { method: 'POST' }),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ['events'] }),
   })
 }

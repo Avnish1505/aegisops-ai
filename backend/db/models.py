@@ -137,6 +137,8 @@ class Decision(Base):
     verification: Mapped[dict[str, object] | None] = mapped_column(JSON)
     drafts: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
     constraints: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
+    # The operator note (and quote) behind each constraint, parallel to ``constraints``.
+    constraint_sources: Mapped[list[dict[str, object] | None] | None] = mapped_column(JSON)
     travel_times: Mapped[dict[str, object] | None] = mapped_column(JSON)
     objective: Mapped[float | None] = mapped_column()
     reference_objective: Mapped[float | None] = mapped_column()
