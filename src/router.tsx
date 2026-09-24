@@ -32,7 +32,12 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
 const opsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: () => <OpsBoard mapSlot={(props) => <OpsMap {...props} />} />,
+  validateSearch: (search: Record<string, unknown>): { incident?: string } =>
+    typeof search.incident === 'string' ? { incident: search.incident } : {},
+  component: function OpsRoute() {
+    const { incident } = opsRoute.useSearch()
+    return <OpsBoard key={incident} initialIncident={incident} mapSlot={(props) => <OpsMap {...props} />} />
+  },
 })
 
 const planRoute = createRoute({

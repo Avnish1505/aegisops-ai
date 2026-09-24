@@ -1,16 +1,9 @@
 import { Link } from '@tanstack/react-router'
 import { useEvents } from '../../api/queries'
 import { Mono, Panel } from '../../components/ui/Panel'
+import { eventText } from '../../lib/events'
 import { istClock } from '../../lib/time'
 
-const TYPE_TEXT: Record<string, string> = {
-  decision_created: 'Plan proposed',
-  verification_completed: 'Plan verified',
-  disposition_recorded: 'Decision recorded',
-  drafts_generated: 'Drafts generated',
-  intake_read: 'Report read',
-  intake_updated: 'Report fields confirmed',
-}
 
 export function EventTimeline() {
   const events = useEvents(undefined, 30)
@@ -25,7 +18,7 @@ export function EventTimeline() {
           return (
             <li key={event.id} className="flex items-center gap-3 border-b border-divider px-3 py-1">
               <Mono>{istClock(new Date(event.ts))}</Mono>
-              <span className="w-40 shrink-0">{TYPE_TEXT[event.type] ?? event.type}</span>
+              <span className="w-40 shrink-0">{eventText(event.type)}</span>
               <span className="w-28 shrink-0 truncate text-muted">{event.actor}</span>
               {verdict === 'blocked' && <span className="font-semibold text-blocked">BLOCKED</span>}
               {action && <span className="text-muted">{action}</span>}

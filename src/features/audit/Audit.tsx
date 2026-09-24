@@ -2,15 +2,9 @@ import { Link } from '@tanstack/react-router'
 import { useChain, useDecision, useEvents, useReverify } from '../../api/queries'
 import type { AuditEvent } from '../../api/types'
 import { Button, Mono, Notice, Panel } from '../../components/ui/Panel'
+import { eventText } from '../../lib/events'
 import { istClock, istDate } from '../../lib/time'
 
-const TYPE_TEXT: Record<string, string> = {
-  decision_created: 'Plan proposed',
-  verification_completed: 'Plan verified',
-  disposition_recorded: 'Decision recorded',
-  drafts_generated: 'Drafts generated',
-  reverification_run: 'Re-verified from stored inputs',
-}
 
 function Summary({ event }: { event: AuditEvent }) {
   const p = event.payload
@@ -54,7 +48,7 @@ export function Audit({ decisionId }: { decisionId: number }) {
                 <div className="flex flex-wrap items-center gap-3">
                   <Mono>#{event.id}</Mono>
                   <Mono>{istDate(new Date(event.ts))} {istClock(new Date(event.ts))}</Mono>
-                  <span className="font-medium">{TYPE_TEXT[event.type] ?? event.type}</span>
+                  <span className="font-medium">{eventText(event.type)}</span>
                   <span className="text-muted">by {event.actor}</span>
                 </div>
                 <div className="mt-0.5"><Summary event={event} /></div>

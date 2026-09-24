@@ -1,6 +1,7 @@
 import { Outlet } from '@tanstack/react-router'
 import { AUTH_MODE, IDENTITIES, signIn, useIdentity } from '../../lib/auth'
 import { useLiveUpdates } from '../../lib/stream'
+import { CommandPalette } from './CommandPalette'
 import { StatusBar } from './StatusBar'
 
 export function RootLayout() {
@@ -18,6 +19,7 @@ export function RootLayout() {
       <main id="main" className="min-h-0 flex-1">
         {identity ? <Outlet /> : <SignIn />}
       </main>
+      {identity && <CommandPalette />}
     </div>
   )
 }

@@ -17,7 +17,13 @@ function useMinuteClock(): number {
   return now
 }
 
-export function OpsBoard({ mapSlot }: { mapSlot?: (props: MapSlotProps) => React.ReactNode }) {
+export function OpsBoard({
+  mapSlot,
+  initialIncident,
+}: {
+  mapSlot?: (props: MapSlotProps) => React.ReactNode
+  initialIncident?: string
+}) {
   const navigate = useNavigate()
   const now = useMinuteClock()
   const status = useStatus()
@@ -32,7 +38,7 @@ export function OpsBoard({ mapSlot }: { mapSlot?: (props: MapSlotProps) => React
   const exerciseStartMs = startedAt ? Date.parse(startedAt) : undefined
 
   const incidents = useMemo(() => (scenario ? byPriority(scenario.incidents, plan) : []), [scenario, plan])
-  const [selectedId, setSelectedId] = useState<string>()
+  const [selectedId, setSelectedId] = useState<string | undefined>(initialIncident)
   const selectedIndex = incidents.findIndex((incident) => incident.id === selectedId)
   const selected = selectedIndex >= 0 ? incidents[selectedIndex] : undefined
 
