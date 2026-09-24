@@ -30,6 +30,9 @@ from aegisops.core.config import Settings
 from aegisops.domain.models import Scenario
 from aegisops.geodata.labels import Labeller
 from aegisops.llm.client import LLMClient
+from aegisops.planning.osrm import OSRMProvider
+from aegisops.planning.routes import RouteGeometry, straight_line
+from aegisops.planning.travel import TravelTimeProvider
 from backend.db.models import Alert, Approval, Decision, Event, Exercise, Facility, FeedPoll
 
 FEEDS = ("sachet", "usgs", "gdacs")
@@ -159,6 +162,20 @@ def event_dict(event: Event) -> dict[str, Any]:
     }
 
 
+def alert_areas(parsed: dict[str, Any]) -> list[dict[str, Any]]:
+    """CAP polygons ([[lat, lon], ...]) and circles ([lat, lon, km]) from a stored alert."""
+    areas = []
+    infos = parsed.get("infos") or []
+    english = [i for i in infos if str(i.get("language", "")).lower().startswith("en")]
+    for info in (english or infos)[:1]:
+        for area in info.get("areas") or []:
+            polygons, circles = area.get("polygons") or [], area.get("circles") or []
+            if polygons or circles:
+                areas.append({"area_desc": area.get("area_desc"), "polygons": polygons,
+                              "circles": circles})
+    return areas
+
+
 # --- Stream -----------------------------------------------------------------------------------
 Message = tuple[str, str, dict[str, Any]]  # (sse id, sse event name, data)
 
@@ -246,6 +263,7 @@ def console_router(
     llm: LLMClient,
     tickets: TicketBook,
     labeller: Labeller,
+    travel: TravelTimeProvider,
     *,
     stream_poll_s: float = 1.0,
 ) -> APIRouter:
@@ -308,6 +326,37 @@ def console_router(
                     Decision.id.not_in(select(Approval.decision_id)),
                 )
             return [decision_summary(d) for d in session.scalars(query)]
+
+    @router.get("/decisions/{decision_id}/routes", tags=["decisions"])
+    def decision_routes(
+        decision_id: int, principal: Annotated[Principal, Depends(require_viewer)]
+    ) -> list[dict[str, Any]]:
+        """Road geometry per assignment for the map; ETAs stay those of the stored matrix."""
+        del principal
+        with session_factory() as session:
+            decision = session.get(Decision, decision_id)
+            if decision is None or decision.scenario is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                    detail="Decision not found.")
+            scenario = Scenario.model_validate(decision.scenario)
+            assignments = list(decision.assignments or [])
+        units = {r.id: r.location for r in scenario.resources}
+        incidents = {i.id: i.location for i in scenario.incidents}
+        routes = []
+        for assignment in assignments:
+            origin = units.get(str(assignment["resource_id"]))
+            destination = incidents.get(str(assignment["incident_id"]))
+            if origin is None or destination is None:
+                continue  # the verifier already reports assignments to unknown units/incidents
+            geometry: RouteGeometry = (
+                travel.route(origin, destination)
+                if isinstance(travel, OSRMProvider)
+                else straight_line(origin, destination, "No road network configured")
+            )
+            routes.append({"resource_id": assignment["resource_id"],
+                           "incident_id": assignment["incident_id"],
+                           **geometry.model_dump(mode="json")})
+        return routes
 
     @router.get("/events", tags=["audit"])
     def list_events(

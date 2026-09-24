@@ -1,7 +1,7 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/http'
 import type { PlanningConstraint, Scenario } from '../types'
-import type { AuditEvent, DecisionSummary, Labels, StatusResponse, StoredDecision } from './types'
+import type { AlertSummary, AuditEvent, DecisionSummary, Labels, RouteGeometry, StatusResponse, StoredDecision } from './types'
 
 export const keys = {
   status: ['status'] as const,
@@ -11,6 +11,8 @@ export const keys = {
   decision: (id: number) => ['decision', id] as const,
   events: (decisionId?: number) => ['events', decisionId ?? 'all'] as const,
   labels: (scenarioId: string) => ['labels', scenarioId] as const,
+  routes: (decisionId: number) => ['routes', decisionId] as const,
+  alerts: ['alerts'] as const,
 }
 
 function query(params: Record<string, string | number | boolean | undefined>): string {
@@ -82,5 +84,21 @@ export function usePlan() {
       void client.invalidateQueries({ queryKey: ['decisions'] })
       void client.invalidateQueries({ queryKey: keys.status })
     },
+  })
+}
+
+export function useRoutes(decisionId: number | undefined) {
+  return useQuery({
+    queryKey: keys.routes(decisionId ?? 0),
+    queryFn: () => api<RouteGeometry[]>(`/api/v1/decisions/${decisionId}/routes`),
+    enabled: decisionId !== undefined,
+    staleTime: Infinity, // a stored plan's routes never change
+  })
+}
+
+export function useAlerts() {
+  return useQuery({
+    queryKey: keys.alerts,
+    queryFn: () => api<AlertSummary[]>('/api/v1/alerts?source=sachet&limit=100', { auth: false }),
   })
 }

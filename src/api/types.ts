@@ -66,3 +66,30 @@ export interface StoredDecision extends Decision {
 }
 
 export type { Assignment }
+
+export interface RouteGeometry {
+  resource_id: string
+  incident_id: string
+  coordinates: [number, number][] // [lon, lat]
+  geometry: 'road' | 'straight_line'
+  reason: string | null
+}
+
+export interface AlertArea {
+  area_desc: string | null
+  polygons: [number, number][][] // [lat, lon] rings (CAP order)
+  circles: [number, number, number][] // lat, lon, radius km
+}
+
+export interface AlertSummary {
+  source: 'sachet' | 'usgs' | 'gdacs'
+  identifier: string
+  sent_at: string | null
+  fetched_at: string
+  event: string | null
+  severity: string | null
+  headline: string | null
+  area_desc: string | null
+  location: { lat: number; lon: number } | null
+  areas: AlertArea[]
+}

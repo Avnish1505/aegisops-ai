@@ -5,6 +5,7 @@ import {
   createRoute,
   createRouter,
 } from '@tanstack/react-router'
+import { lazy } from 'react'
 import { OpsBoard } from './features/ops/OpsBoard'
 import { NotFound, RootLayout } from './components/shell/RootLayout'
 import { Pending } from './routes/Pending'
@@ -12,6 +13,8 @@ import { Pending } from './routes/Pending'
 export interface RouterContext {
   queryClient: QueryClient
 }
+
+const OpsMap = lazy(() => import('./features/map/OpsMap'))
 
 const decisionIdParams = {
   parse: (params: { decisionId: string }) => ({ decisionId: Number(params.decisionId) }),
@@ -26,7 +29,7 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
 const opsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: () => <OpsBoard />,
+  component: () => <OpsBoard mapSlot={(props) => <OpsMap {...props} />} />,
 })
 
 const planRoute = createRoute({

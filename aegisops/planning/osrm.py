@@ -19,7 +19,8 @@ from collections import OrderedDict
 import httpx
 
 from aegisops.domain.canonical import canonical_json, sha256_hex
-from aegisops.domain.models import Scenario
+from aegisops.domain.models import Location, Scenario
+from aegisops.planning.routes import RouteGeometry, straight_line
 from aegisops.planning.travel import StraightLineProvider, TravelTimeMatrix, TravelTimeProvider
 
 
@@ -40,7 +41,36 @@ class OSRMProvider:
         self._cache: OrderedDict[str, TravelTimeMatrix] = OrderedDict()
         self._cache_size = cache_size
         self._fallback = fallback or StraightLineProvider()
+        self._routes: OrderedDict[tuple[float, float, float, float], RouteGeometry] = OrderedDict()
         self.name = f"osrm-{profile}"
+
+    def route(self, origin: Location, destination: Location) -> RouteGeometry:
+        """Road geometry from OSRM's route service (simplified), cached; straight line on error."""
+        key = (origin.lat, origin.lon, destination.lat, destination.lon)
+        cached = self._routes.get(key)
+        if cached is not None:
+            self._routes.move_to_end(key)
+            return cached
+        try:
+            response = self._client.get(
+                f"{self._base_url}/route/v1/{self._profile}/"
+                f"{origin.lon:.6f},{origin.lat:.6f};{destination.lon:.6f},{destination.lat:.6f}",
+                params={"overview": "simplified", "geometries": "geojson"},
+            )
+            response.raise_for_status()
+            body = response.json()
+            if body.get("code") != "Ok" or not body.get("routes"):
+                raise ValueError(f"OSRM answered {body.get('code')}")
+            line = body["routes"][0]["geometry"]["coordinates"]
+            coordinates = [(float(x), float(y)) for x, y in line]
+        except (httpx.HTTPError, ValueError, KeyError, TypeError, IndexError) as error:
+            reason = f"OSRM route unavailable ({type(error).__name__})"
+            return straight_line(origin, destination, reason)
+        geometry = RouteGeometry(coordinates=coordinates, geometry="road")
+        self._routes[key] = geometry
+        if len(self._routes) > self._cache_size * 16:
+            self._routes.popitem(last=False)
+        return geometry
 
     def cache_key(self, scenario: Scenario) -> str:
         return sha256_hex(

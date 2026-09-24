@@ -26,7 +26,7 @@ from aegisops.api.auth import (
     require_operator,
     require_viewer,
 )
-from aegisops.api.console import TicketBook, console_router
+from aegisops.api.console import TicketBook, alert_areas, console_router
 from aegisops.api.schemas import (
     DecisionDispositionRequest,
     DevTokenRequest,
@@ -174,6 +174,7 @@ def create_app(
         )
 
     llm = llm_client or LLMClient(active_settings)
+    travel = travel_provider or _default_travel_provider(active_settings)
     decision_service = DecisionService(
         {
             "rule_based": RuleBasedDecisionEngine(),
@@ -181,12 +182,14 @@ def create_app(
                 RetrievalEngine(active_settings.knowledge_base_path), llm=llm
             ),
         },
-        travel_provider or _default_travel_provider(active_settings),
+        travel,
     )
 
     gazetteer = Gazetteer.load(DEFAULT_GAZETTEER)
     app.include_router(
-        console_router(session_factory, active_settings, llm, TicketBook(), Labeller(gazetteer))
+        console_router(
+            session_factory, active_settings, llm, TicketBook(), Labeller(gazetteer), travel
+        )
     )
     reader = Reader(llm, gazetteer)
     translator = ConstraintTranslator(llm, gazetteer)
@@ -300,6 +303,7 @@ def create_app(
                         if alert.location
                         else None
                     ),
+                    "areas": alert_areas(alert.parsed),
                 }
                 for alert in session.scalars(query.limit(limit))
             ]

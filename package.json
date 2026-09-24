@@ -12,6 +12,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@deck.gl/core": "9.4.0",
+    "@deck.gl/layers": "9.4.0",
+    "@deck.gl/mapbox": "9.4.0",
     "@fontsource/ibm-plex-mono": "5.3.0",
     "@fontsource/ibm-plex-sans": "5.3.0",
     "@tailwindcss/vite": "4.3.3",
@@ -20,6 +23,7 @@
     "@vitejs/plugin-react": "6.0.4",
     "cmdk": "1.1.1",
     "lucide-react": "1.48.0",
+    "maplibre-gl": "6.11.1",
     "radix-ui": "1.6.7",
     "react": "19.2.8",
     "react-dom": "19.2.8",

@@ -34,3 +34,23 @@ export function useTheme(): ThemeChoice {
 export function initTheme(): void {
   applyTheme(choice)
 }
+
+function systemPrefersLight(): boolean {
+  return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: light)').matches
+}
+
+/** The theme actually shown: the explicit choice, else the OS preference. */
+export function useResolvedTheme(): 'dark' | 'light' {
+  const chosen = useTheme()
+  const system = useSyncExternalStore(
+    (listener) => {
+      if (typeof window.matchMedia !== 'function') return () => {}
+      const query = window.matchMedia('(prefers-color-scheme: light)')
+      query.addEventListener('change', listener)
+      return () => query.removeEventListener('change', listener)
+    },
+    () => (systemPrefersLight() ? 'light' : 'dark'),
+    () => 'dark' as const,
+  )
+  return chosen === 'system' ? system : chosen
+}

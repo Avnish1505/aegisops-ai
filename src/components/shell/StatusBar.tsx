@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { useIdentity } from '../../lib/auth'
 import { IdentityMenu } from './IdentityMenu'
 import { IstClock } from './IstClock'
 import { SystemStatus } from './SystemStatus'
@@ -11,6 +12,7 @@ const NAV = [
 ] as const
 
 export function StatusBar() {
+  const identity = useIdentity()
   return (
     <header className="flex h-9 shrink-0 items-center gap-4 border-b border-divider bg-surface px-3">
       <span className="rounded-sm border border-control-border px-1.5 text-xs font-semibold tracking-wider">
@@ -29,7 +31,7 @@ export function StatusBar() {
         ))}
       </nav>
       <div className="ml-auto flex items-center gap-4">
-        <SystemStatus />
+        {identity && <SystemStatus />}
         <IdentityMenu />
         <ThemeToggle />
         <IstClock />

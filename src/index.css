@@ -28,3 +28,8 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ISA-101: the basemap is context only, so it is shown without colour. deck.gl draws on its own
+   canvas above it and keeps its colours. */
+.aegis-map .maplibregl-canvas { filter: grayscale(1); }
+.aegis-map .maplibregl-ctrl-attrib { font: 11px/16px var(--font-sans); }

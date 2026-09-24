@@ -187,3 +187,59 @@ def test_decisions_filter_by_scenario() -> None:
                       headers=operator).json()
 
     assert {row["scenario_id"] for row in rows} == {made["scenario_id"]}
+
+
+def test_routes_are_straight_lines_without_a_road_network() -> None:
+    client = _app()
+    operator = bearer("olive", "operator")
+    decision = client.post("/api/v1/decisions", json={"seed": 3}, headers=operator).json()
+
+    routes = client.get(f"/api/v1/decisions/{decision['decision_id']}/routes",
+                        headers=operator).json()
+
+    assert len(routes) == len(decision["assignments"]) > 0
+    assert {r["geometry"] for r in routes} == {"straight_line"}
+    assert all(len(r["coordinates"]) == 2 for r in routes)
+
+
+def test_osrm_routes_use_road_geometry_and_fall_back_on_error() -> None:
+    import httpx
+
+    from aegisops.domain.models import Location
+    from aegisops.planning.osrm import OSRMProvider
+
+    calls: list[str] = []
+
+    def osrm(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if "80.950000" in request.url.path:
+            return httpx.Response(503)
+        line = [[80.92, 26.83], [80.93, 26.84], [80.94, 26.85]]
+        return httpx.Response(200, json={
+            "code": "Ok", "routes": [{"geometry": {"type": "LineString", "coordinates": line}}]})
+
+    provider = OSRMProvider("http://osrm", client=httpx.Client(transport=httpx.MockTransport(osrm)))
+    road = provider.route(Location(lat=26.83, lon=80.92), Location(lat=26.85, lon=80.94))
+    again = provider.route(Location(lat=26.83, lon=80.92), Location(lat=26.85, lon=80.94))
+    failed = provider.route(Location(lat=26.83, lon=80.92), Location(lat=26.85, lon=80.95))
+
+    assert road.geometry == "road" and len(road.coordinates) == 3
+    assert again == road and len(calls) == 2  # the second road request came from the cache
+    assert calls[0].startswith("/route/v1/driving/80.920000,26.830000;")
+    assert failed.geometry == "straight_line" and "HTTPStatusError" in (failed.reason or "")
+
+
+def test_alert_areas_keep_cap_polygons_and_circles() -> None:
+    from pathlib import Path
+
+    from aegisops.api.console import alert_areas
+    from aegisops.ingestion.cap import cap_to_record
+
+    fixture = Path(__file__).parent / "fixtures" / "feeds" / "cap_synthetic_polygon_circle.xml"
+    record = cap_to_record(fixture.read_bytes())
+
+    areas = alert_areas(record.parsed)
+
+    assert areas and areas[0]["polygons"] and areas[0]["circles"]
+    lat, lon = areas[0]["polygons"][0][0]
+    assert 20 < lat < 30 and 75 < lon < 85  # CAP order is lat,lon; Lucknow is ~26.8 N, 80.9 E
