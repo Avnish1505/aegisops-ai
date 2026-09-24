@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from math import hypot
+from math import asin, cos, radians, sin, sqrt
 
 from aegisops.domain.models import (
-    Assignment,
     Incident,
+    Location,
     SafetyFinding,
     Scenario,
     Severity,
@@ -29,9 +29,23 @@ def priority_score(incident: Incident) -> float:
     )
 
 
-def travel_minutes(source: tuple[float, float], target: tuple[float, float], speed: float) -> float:
-    """Return Euclidean travel time in synthetic grid minutes."""
-    return hypot(source[0] - target[0], source[1] - target[1]) / speed
+EARTH_RADIUS_KM = 6_371.0088
+# Roads are longer than the straight line between two points; 1.4 is a typical urban
+# circuity. Only the degraded straight-line fallback uses it: road ETAs come from OSRM.
+ROAD_CIRCUITY = 1.4
+
+
+def haversine_km(source: Location, target: Location) -> float:
+    """Great-circle distance between two WGS84 points."""
+    lat1, lat2 = radians(source.lat), radians(target.lat)
+    d_lat, d_lon = lat2 - lat1, radians(target.lon - source.lon)
+    a = sin(d_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(d_lon / 2) ** 2
+    return 2 * EARTH_RADIUS_KM * asin(sqrt(a))
+
+
+def travel_minutes(source: Location, target: Location, speed_kmh: float) -> float:
+    """Straight-line estimate: great-circle distance x ROAD_CIRCUITY at ``speed_kmh``."""
+    return haversine_km(source, target) * ROAD_CIRCUITY / speed_kmh * 60
 
 
 def evaluate_safety_gates(
@@ -79,105 +93,3 @@ def evaluate_safety_gates(
             )
         )
     return findings, blocked
-
-
-def validate_llm_recommendation(
-    assignments: list[Assignment], requires_human_approval: bool, scenario: Scenario
-) -> tuple[list[Assignment], list[UnmetRequirement], list[SafetyFinding], bool]:
-    """Accept only policy-compliant LLM assignments and recompute safety state."""
-    incidents = {incident.id: incident for incident in scenario.incidents}
-    resources = {resource.id: resource for resource in scenario.resources}
-    fulfilled: dict[tuple[str, object], int] = {}
-    accepted: list[Assignment] = []
-    findings: list[SafetyFinding] = []
-    seen_resource_ids: set[str] = set()
-
-    for assignment in assignments:
-        incident = incidents.get(assignment.incident_id)
-        resource = resources.get(assignment.resource_id)
-        if resource is None:
-            findings.append(
-                SafetyFinding(
-                    code="LLM_INVALID_RESOURCE_ID",
-                    severity="critical",
-                    incident_id=assignment.incident_id if incident else None,
-                    message="LLM proposed a resource that is not in the scenario.",
-                )
-            )
-            continue
-        if resource.id in seen_resource_ids:
-            findings.append(
-                SafetyFinding(
-                    code="LLM_DUPLICATE_RESOURCE_ASSIGNMENT",
-                    severity="critical",
-                    incident_id=assignment.incident_id if incident else None,
-                    message="LLM proposed the same resource more than once.",
-                )
-            )
-            continue
-        seen_resource_ids.add(resource.id)
-        if incident is None:
-            findings.append(
-                SafetyFinding(
-                    code="LLM_INVALID_INCIDENT_ID",
-                    severity="critical",
-                    message="LLM proposed an incident that is not in the scenario.",
-                )
-            )
-            continue
-        if not resource.available:
-            findings.append(
-                SafetyFinding(
-                    code="LLM_UNAVAILABLE_RESOURCE",
-                    severity="critical",
-                    incident_id=incident.id,
-                    message="LLM proposed a resource that is unavailable in the scenario.",
-                )
-            )
-            continue
-        requirement_key = (incident.id, resource.type)
-        required_quantity = incident.resources_needed.get(resource.type)
-        if assignment.resource_type != resource.type or required_quantity is None:
-            findings.append(
-                SafetyFinding(
-                    code="LLM_RESOURCE_TYPE_VIOLATION",
-                    severity="critical",
-                    incident_id=incident.id,
-                    message="LLM proposed a resource type not required by the incident.",
-                )
-            )
-            continue
-        if fulfilled.get(requirement_key, 0) >= required_quantity:
-            findings.append(
-                SafetyFinding(
-                    code="LLM_EXCESS_RESOURCE_ASSIGNMENT",
-                    severity="critical",
-                    incident_id=incident.id,
-                    message="LLM proposed more resources than the incident requires.",
-                )
-            )
-            continue
-        accepted.append(assignment)
-        fulfilled[requirement_key] = fulfilled.get(requirement_key, 0) + 1
-
-    unmet = [
-        UnmetRequirement(
-            incident_id=incident.id,
-            resource_type=resource_type,
-            quantity=quantity - fulfilled.get((incident.id, resource_type), 0),
-            severity=incident.severity,
-        )
-        for incident in scenario.incidents
-        for resource_type, quantity in incident.resources_needed.items()
-        if quantity > fulfilled.get((incident.id, resource_type), 0)
-    ]
-    safety_findings, blocked = evaluate_safety_gates(unmet, scenario)
-    if not requires_human_approval:
-        findings.append(
-            SafetyFinding(
-                code="LLM_HUMAN_APPROVAL_VIOLATION",
-                severity="critical",
-                message="LLM output attempted to remove the required human approval gate.",
-            )
-        )
-    return accepted, unmet, findings + safety_findings, blocked or bool(findings)

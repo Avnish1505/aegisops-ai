@@ -11,3 +11,12 @@ node_modules/
 dist/
 .DS_Store
 *.db
+.hypothesis/
+/data/
+.sf/
+evals/data/.cache/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/

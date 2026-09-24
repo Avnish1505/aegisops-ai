@@ -33,7 +33,7 @@ def _result_metrics(result: DecisionResult, latency_ms: float) -> dict[str, Any]
     """Extract comparison metrics without changing either engine's result."""
     findings_by_severity = Counter(finding.severity for finding in result.safety_findings)
     return {
-        "coverage": result.advisory_confidence,
+        "coverage": result.coverage,
         "unmet_requirements": {
             "entries": len(result.unmet_requirements),
             "units": sum(requirement.quantity for requirement in result.unmet_requirements),

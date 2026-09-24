@@ -9,6 +9,7 @@ from pathlib import Path
 
 import faiss
 import numpy as np
+import numpy.typing as npt
 
 TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 EMBEDDING_DIMENSION = 256
@@ -53,7 +54,7 @@ class KnowledgeRetriever:
         ]
 
     @staticmethod
-    def _embed(text: str) -> np.ndarray:
+    def _embed(text: str) -> npt.NDArray[np.float32]:
         vector = np.zeros(EMBEDDING_DIMENSION, dtype=np.float32)
         for token in TOKEN_PATTERN.findall(text.lower()):
             digest = blake2b(token.encode(), digest_size=8).digest()

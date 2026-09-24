@@ -7,6 +7,8 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from aegisops.domain.canonical import canonical_json, sha256_hex
+
 
 class IncidentType(StrEnum):
     MEDICAL = "medical"
@@ -28,9 +30,9 @@ class ResourceType(StrEnum):
     FIRE_UNIT = "fire_unit"
     RESCUE_TEAM = "rescue_team"
     HAZMAT_UNIT = "hazmat_unit"
+    BOAT = "boat"
 
 
-Coordinate = Annotated[tuple[float, float], Field(min_length=2, max_length=2)]
 
 
 class DomainModel(BaseModel):
@@ -39,14 +41,24 @@ class DomainModel(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
+class Location(DomainModel):
+    """A WGS84 position in decimal degrees. Serialised as {"lat": ..., "lon": ...}."""
+
+    lat: Annotated[float, Field(ge=-90, le=90)]
+    lon: Annotated[float, Field(ge=-180, le=180)]
+
+
 class Incident(DomainModel):
     id: Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")]
     type: IncidentType
     severity: Severity
-    location: Coordinate
+    location: Location
     people_affected: Annotated[int, Field(ge=0, le=1_000_000)]
     reported_at_min: Annotated[int, Field(ge=0, le=1_000_000)]
     resources_needed: dict[ResourceType, Annotated[int, Field(ge=1, le=100)]]
+    # The raw field report. Untrusted free text: never interpreted as instructions, and scanned
+    # for instruction-like content by the verifier.
+    report: Annotated[str | None, Field(max_length=2_000)] = None
 
     @field_validator("resources_needed")
     @classmethod
@@ -61,9 +73,10 @@ class Incident(DomainModel):
 class Resource(DomainModel):
     id: Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")]
     type: ResourceType
-    location: Coordinate
+    location: Location
     available: bool = True
-    eta_speed: Annotated[float, Field(gt=0, le=1_000)] = 1.0
+    # Average road speed, used only by the straight-line fallback when no road network is up.
+    speed_kmh: Annotated[float, Field(gt=0, le=200)] = 30.0
 
 
 class Scenario(DomainModel):
@@ -82,9 +95,20 @@ class Scenario(DomainModel):
             raise ValueError("entity IDs must be unique within their collection")
         return value
 
+    def sha256(self) -> str:
+        """Hash the canonical JSON form so a stored decision can be tied to its exact input."""
+        return sha256_hex(canonical_json(self.model_dump(mode="json")))
+
     def to_dict(self) -> dict[str, object]:
         """Compatibility helper for prototype callers; prefer ``model_dump(mode='json')``."""
         return self.model_dump(mode="json")
+
+
+class Citation(DomainModel):
+    """A claim that ``quote`` appears verbatim in retrieved evidence ``evidence_id``."""
+
+    evidence_id: Annotated[str, Field(min_length=1, max_length=64)]
+    quote: Annotated[str, Field(max_length=1_000)]
 
 
 class Assignment(DomainModel):
@@ -92,7 +116,7 @@ class Assignment(DomainModel):
     resource_id: str
     resource_type: ResourceType
     travel_minutes: Annotated[float, Field(ge=0)]
-    evidence_ids: list[str] = Field(default_factory=list)
+    citations: list[Citation] = Field(default_factory=list)
 
 
 class UnmetRequirement(DomainModel):
@@ -151,7 +175,7 @@ class DecisionResult(DomainModel):
     assignments: list[Assignment]
     unmet_requirements: list[UnmetRequirement]
     safety_findings: list[SafetyFinding]
-    advisory_confidence: Annotated[float, Field(ge=0, le=1)]
+    coverage: Annotated[float, Field(ge=0, le=1)]
     decision_trace: list[str]
     evidence_ids: list[str] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)

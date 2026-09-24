@@ -62,9 +62,9 @@ def _validate_rule_expectation(result: DecisionResult, expected: EngineExpectati
         )
     if not set(expected.required_finding_codes) <= finding_codes:
         regressions.append("required safety finding is missing")
-    if result.advisory_confidence != expected.coverage:
+    if result.coverage != expected.coverage:
         regressions.append(
-            f"expected coverage {expected.coverage}, got {result.advisory_confidence}"
+            f"expected coverage {expected.coverage}, got {result.coverage}"
         )
     return regressions
 
@@ -95,7 +95,7 @@ def _scenario_result(
             "unmet_units": _unmet_units(result),
             "safety_findings": len(result.safety_findings),
             "blocked": result.status.value == "blocked",
-            "coverage": result.advisory_confidence,
+            "coverage": result.coverage,
         },
         "decision": result.model_dump(mode="json"),
     }

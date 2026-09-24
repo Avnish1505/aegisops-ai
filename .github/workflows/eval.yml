@@ -1,0 +1,48 @@
+name: Full eval
+
+# Manual only: calls the hosted model (costs credits). Needs the NVIDIA_API_KEY repository secret.
+on:
+  workflow_dispatch:
+    inputs:
+      trials:
+        description: "Trials per end-to-end scenario (pass^k)"
+        default: "5"
+      limit:
+        description: "Debug: first N items of each suite (empty = all)"
+        default: ""
+      llm_vs_solver:
+        description: "Also run the LLM-vs-solver experiment"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      AEGISOPS_LLM_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements-dev.txt
+      - run: python -m evals.fetch_humaid
+      - name: Eval
+        run: |
+          python -m evals.run --trials "${{ inputs.trials }}" \
+            ${{ inputs.limit != '' && format('--limit {0}', inputs.limit) || '' }}
+      - name: LLM-direct vs CP-SAT
+        if: ${{ inputs.llm_vs_solver }}
+        run: |
+          python -m evals.llm_vs_solver \
+            ${{ inputs.limit != '' && format('--limit {0}', inputs.limit) || '' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-reports
+          path: reports/

@@ -18,12 +18,14 @@ In a second terminal, run `npm run dev`. The frontend defaults to `http://localh
 
 ## Working with the API
 
-Decision endpoints require the development role dependency. A bearer token of `operator`, `commander`, or `admin` (optionally prefixed `role:`) meets the implemented check; without a token, development defaults to `VIEWER` and gets 403. This is scaffolding only—do not use it as real authentication.
+Roles are `viewer`, `operator`, `approver`, and `admin`, in increasing privilege (`aegisops/application/roles.py`, shared with the `roles` table). Every call except the scenario generator and health checks needs a JWT bearer token with `sub` and `role` (`aegisops/api/auth.py`). Creating a decision or rejecting one needs `operator`; approving needs `approver`, and the proposer's own `sub` gets 409 (`tests/test_auth.py`). With `AEGISOPS_ENVIRONMENT=development` the API mints HS256 tokens at `POST /api/v1/dev/token`; for OIDC, configure RS256 and a JWKS URL (see ENVIRONMENT.md).
 
 ```bash
 curl 'http://localhost:8000/api/v1/scenarios?seed=42'
-curl -X POST 'http://localhost:8000/api/v1/decisions?engine=rule_based' \
-  -H 'Authorization: Bearer operator' \
+TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/dev/token \
+  -H 'Content-Type: application/json' -d '{"sub":"alice","role":"operator"}' | jq -r .access_token)
+curl -X POST 'http://localhost:8000/api/v1/decisions' \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"seed":42}'
 ```

@@ -66,8 +66,8 @@ Work through these in order; stop once the health checks in **Verification** pas
 
 1. **Confirm scope.** Hit `/health/live` and `/health/ready` directly against the affected
    deployment to distinguish a total outage from a degraded dependency.
-2. **Check configuration and secrets.** Confirm `SECRET_KEY`, `DATABASE_URL`,
-   `AEGISOPS_CORS_ORIGINS`, and `RATE_LIMIT` are set as expected for the environment (see
+2. **Check configuration and secrets.** Confirm `AEGISOPS_SECRET_KEY`, `AEGISOPS_DATABASE_URL`,
+   `AEGISOPS_CORS_ORIGINS`, and `AEGISOPS_RATE_LIMIT` are set as expected for the environment (see
    `ENVIRONMENT.md`); a bad or missing value is a common cause of boot failure.
 3. **Restart the service.**
    - Docker Compose: `docker-compose restart web`

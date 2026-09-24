@@ -5,6 +5,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
+from aegisops.application.roles import UserRole
 from backend.db.models import (
     Approval,
     AuditLog,
@@ -14,7 +15,6 @@ from backend.db.models import (
     Incident,
     Role,
     User,
-    UserRole,
 )
 
 
@@ -95,8 +95,7 @@ def test_incident_model(db_session):
         id="inc1",
         type="medical",
         severity="medium",
-        location_x=10.0,
-        location_y=20.0,
+        location=(26.85, 80.95),
         people_affected=5,
         reported_at_min=0,
     )
@@ -107,8 +106,7 @@ def test_incident_model(db_session):
     assert incident.id == "inc1"
     assert incident.type == "medical"
     assert incident.severity == "medium"
-    assert incident.location_x == 10.0
-    assert incident.location_y == 20.0
+    assert incident.location == (26.85, 80.95)
     assert incident.people_affected == 5
     assert incident.reported_at_min == 0
     assert incident.created_at is not None
@@ -120,8 +118,7 @@ def test_evidence_model(db_session):
         id="inc1",
         type="medical",
         severity="medium",
-        location_x=10.0,
-        location_y=20.0,
+        location=(26.85, 80.95),
         people_affected=5,
         reported_at_min=0,
     )
@@ -170,8 +167,7 @@ def test_evidence_incident_foreign_key(db_session):
         id="inc1",
         type="medical",
         severity="medium",
-        location_x=10.0,
-        location_y=20.0,
+        location=(26.85, 80.95),
         people_affected=5,
         reported_at_min=0,
     )
@@ -192,7 +188,7 @@ def test_decision_model(db_session):
         engine="test_engine",
         status="requires_human_approval",
         requires_human_approval=True,
-        advisory_confidence=0.8,
+        coverage=0.8,
         decision_trace=[{"step": 1, "note": "initial"}],
     )
     db_session.add(decision)
@@ -204,7 +200,7 @@ def test_decision_model(db_session):
     assert decision.engine == "test_engine"
     assert decision.status == "requires_human_approval"
     assert decision.requires_human_approval is True
-    assert decision.advisory_confidence == 0.8
+    assert decision.coverage == 0.8
     assert decision.decision_trace == [{"step": 1, "note": "initial"}]
     assert decision.created_at is not None
 
@@ -221,7 +217,7 @@ def test_approval_model(db_session):
         engine="test_engine",
         status="requires_human_approval",
         requires_human_approval=True,
-        advisory_confidence=0.8,
+        coverage=0.8,
         decision_trace=[],
     )
     db_session.add_all([user, decision])

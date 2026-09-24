@@ -1,0 +1,10 @@
+lucknow.osm.pbf: OpenStreetMap extract of Lucknow district, used to build the OSRM road graph
+and to import facilities for the public demo (scripts/demo_start.sh, deploy/osrm/Dockerfile).
+
+Map data (c) OpenStreetMap contributors, available under the Open Database License (ODbL) 1.0:
+https://www.openstreetmap.org/copyright
+
+source: https://download.geofabrik.de/asia/india/central-zone-latest.osm.pbf
+osm_data_timestamp: 2026-09-22T13:09:20Z
+bbox: 80.45,26.45,81.35,27.25
+made with: scripts/osrm_prepare.sh (osmium extract --strategy simple)
