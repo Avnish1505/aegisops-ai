@@ -285,6 +285,19 @@ def console_router(
         """Reason codes required with each disposition, with their display text."""
         return REASONS
 
+    @router.get("/places", tags=["console"])
+    def places(
+        q: Annotated[str, Query(min_length=1, max_length=100)],
+        principal: Annotated[Principal, Depends(require_viewer)],
+        limit: Annotated[int, Query(ge=1, le=20)] = 8,
+    ) -> list[dict[str, Any]]:
+        """Lucknow gazetteer search (OSM, ODbL) for picking or correcting a location."""
+        del principal
+        return [
+            {"name": e.name, "kind": e.kind, "lat": e.lat, "lon": e.lon, "osm": e.osm}
+            for e in labeller.gazetteer.search(q, limit)
+        ]
+
     @router.post("/labels", tags=["console"])
     def labels(
         scenario: Scenario, principal: Annotated[Principal, Depends(require_viewer)]

@@ -38,13 +38,13 @@ def _nearest(entries: list[GazetteerEntry], location: Location) -> Nearest | Non
 
 class Labeller:
     def __init__(self, gazetteer: Gazetteer) -> None:
-        self._gazetteer = gazetteer
+        self.gazetteer = gazetteer
         self._places = [e for e in gazetteer.entries if e.kind == "place"]
         self._landmarks = [e for e in gazetteer.entries if e.kind == "landmark"]
 
     def place(self, location: Location, report: str | None = None) -> str | None:
         if report:
-            mentioned = self._gazetteer.geocode(report)
+            mentioned = self.gazetteer.geocode(report)
             if mentioned is not None and haversine_km(
                 location, Location(lat=mentioned.lat, lon=mentioned.lon)
             ) <= MENTION_RADIUS_KM:

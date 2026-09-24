@@ -6,6 +6,9 @@ import type {
   AlertSummary,
   AuditEvent,
   Baseline,
+  ConfirmedFields,
+  IntakeReport,
+  PlaceMatch,
   DecisionSummary,
   DispositionResult,
   Labels,
@@ -174,5 +177,69 @@ export function useReverify(decisionId: number) {
   return useMutation({
     mutationFn: () => api<Reverification>(`/api/v1/decisions/${decisionId}/reverify`, { method: 'POST' }),
     onSuccess: () => void client.invalidateQueries({ queryKey: ['events'] }),
+  })
+}
+
+export function useIntake(openOnly = true) {
+  return useQuery({
+    queryKey: ['intake', openOnly],
+    queryFn: () => api<IntakeReport[]>(`/api/v1/intake?open_only=${openOnly}`),
+  })
+}
+
+function useIntakeMutation<Input>(request: (input: Input) => Promise<IntakeReport>) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: request,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['intake'] })
+      void client.invalidateQueries({ queryKey: ['exercise'] })
+      void client.invalidateQueries({ queryKey: ['labels'] })
+      void client.invalidateQueries({ queryKey: ['events'] })
+    },
+  })
+}
+
+export function useReadStored() {
+  return useIntakeMutation((id: number) => api<IntakeReport>(`/api/v1/intake/${id}/read`, { method: 'POST' }))
+}
+
+export function useConfirm() {
+  return useIntakeMutation((input: { id: number; fields: ConfirmedFields }) =>
+    api<IntakeReport>(`/api/v1/intake/${input.id}/confirm`, { method: 'POST', body: { fields: input.fields } }),
+  )
+}
+
+export function useDismiss() {
+  return useIntakeMutation((input: { id: number; reason: string }) =>
+    api<IntakeReport>(`/api/v1/intake/${input.id}/dismiss`, { method: 'POST', body: { reason: input.reason } }),
+  )
+}
+
+export function useMerge() {
+  return useIntakeMutation((input: { id: number; into: number }) =>
+    api<IntakeReport>(`/api/v1/intake/${input.id}/merge`, { method: 'POST', body: { into: input.into } }),
+  )
+}
+
+export function useSeverityPreview(fields: ConfirmedFields | null) {
+  return useQuery({
+    queryKey: ['severity-preview', fields],
+    queryFn: () =>
+      api<{ severity: import('../types').Severity; rule: string }>('/api/v1/intake/severity-preview', {
+        method: 'POST',
+        body: { fields },
+      }),
+    enabled: fields !== null,
+    staleTime: Infinity,
+  })
+}
+
+export function usePlaceSearch(query: string) {
+  return useQuery({
+    queryKey: ['places', query],
+    queryFn: () => api<PlaceMatch[]>(`/api/v1/places?q=${encodeURIComponent(query)}`),
+    enabled: query.trim().length >= 2,
+    staleTime: Infinity,
   })
 }

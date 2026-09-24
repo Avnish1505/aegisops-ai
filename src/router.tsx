@@ -8,6 +8,7 @@ import {
 import { lazy } from 'react'
 import { OpsBoard } from './features/ops/OpsBoard'
 import { PlanReview } from './features/plan/PlanReview'
+import { Triage } from './features/triage/Triage'
 import { NotFound, RootLayout } from './components/shell/RootLayout'
 import { Pending } from './routes/Pending'
 
@@ -48,7 +49,10 @@ const triageRoute = createRoute({
   path: '/triage',
   validateSearch: (search: Record<string, unknown>): { report?: number } =>
     typeof search.report === 'number' ? { report: search.report } : {},
-  component: () => <Pending title="Intake triage" />,
+  component: function TriageRoute() {
+    const { report } = triageRoute.useSearch()
+    return <Triage selected={report} />
+  },
 })
 
 const auditRoute = createRoute({

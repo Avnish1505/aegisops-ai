@@ -221,6 +221,15 @@ def intake_router(
                 "dropped": result.candidate.dropped, "status": report.status})
             return report_dict(report)
 
+    @router.post("/severity-preview")
+    def severity_preview(
+        body: ConfirmRequest, principal: Annotated[Principal, Depends(require_viewer)]
+    ) -> dict[str, str]:
+        """The severity the deterministic rules give these fields (what confirm will store)."""
+        del principal
+        severity, rule = confirmed_severity(body.fields)
+        return {"severity": severity, "rule": rule}
+
     @router.get("")
     def list_reports(
         principal: Annotated[Principal, Depends(require_viewer)],

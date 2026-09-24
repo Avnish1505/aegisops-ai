@@ -200,3 +200,29 @@ def test_demo_reports_file_is_well_formed() -> None:
     data = json.loads(REPORTS.read_text("utf-8"))
     assert len(data["reports"]) == len(set(data["reports"])) == 10
     assert "Fictional" in data["note"]
+
+
+def test_place_search_prefers_places_and_prefix_matches() -> None:
+    client = _client()
+
+    rows = client.get("/api/v1/places?q=charb", headers=OPERATOR).json()
+    devanagari = client.get("/api/v1/places?q=चारबाग", headers=OPERATOR).json()
+
+    assert rows[0]["name"] == "Charbagh" and rows[0]["kind"] == "place"
+    assert all("charbagh" in r["name"].lower() for r in rows[:3])
+    assert devanagari and devanagari[0]["name"].startswith("Charbagh")
+
+
+def test_severity_preview_applies_the_rules_to_edited_facts() -> None:
+    client = _client()
+    fields = {"incident_type": "flood", "place": {"name": "Charbagh", "lat": 26.83, "lon": 80.92},
+              "people_count": 4, "needs": {}, "signals": []}
+
+    medium = client.post("/api/v1/intake/severity-preview", json={"fields": fields},
+                         headers=OPERATOR).json()
+    critical = client.post("/api/v1/intake/severity-preview",
+                           json={"fields": {**fields, "signals": ["drowning"]}},
+                           headers=OPERATOR).json()
+
+    assert medium["severity"] == "medium"
+    assert critical["severity"] == "critical" and critical["rule"].startswith("R1")

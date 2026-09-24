@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
-import { useDecision, useLabels } from '../../api/queries'
+import { useDecision, useIntake, useLabels } from '../../api/queries'
+import { candidateQuotes } from '../../lib/candidate'
 import { Mono, Notice, Panel } from '../../components/ui/Panel'
 import { PlanStatus } from '../../components/ui/SeverityGlyph'
 import { istClock, istDate } from '../../lib/time'
@@ -11,9 +12,14 @@ import { EvidencePanel, type QuotesByIncident } from './EvidencePanel'
 import { SitrepDraft } from './SitrepDraft'
 import { VerifierChecklist } from './VerifierChecklist'
 
-export function PlanReview({ decisionId, quotes = {} }: { decisionId: number; quotes?: QuotesByIncident }) {
+export function PlanReview({ decisionId }: { decisionId: number }) {
   const decision = useDecision(decisionId)
   const labels = useLabels(decision.data?.scenario).data
+  // Incidents confirmed in triage carry the model's quotes; seeded exercise injects have none.
+  const intake = useIntake(false).data ?? []
+  const quotes: QuotesByIncident = Object.fromEntries(
+    intake.filter((report) => report.incident_id).map((report) => [report.incident_id as string, candidateQuotes(report.candidate)]),
+  )
 
   if (decision.isPending) return <p className="p-6 text-muted">Loading plan {decisionId}…</p>
   if (decision.isError) return <div className="p-6"><Notice tone="high">Plan {decisionId}: {decision.error.message}</Notice></div>

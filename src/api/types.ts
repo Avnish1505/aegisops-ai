@@ -130,3 +130,63 @@ export interface DispositionResult {
   reason_code: string
   timestamp: string
 }
+
+export const SIGNALS = [
+  'trapped', 'injured', 'unconscious', 'drowning', 'electrocution', 'collapse',
+  'fire_spreading', 'water_rising', 'missing_person', 'medical_emergency',
+] as const
+export type Signal = (typeof SIGNALS)[number]
+
+interface Quoted<T> {
+  value: T
+  quote: string
+}
+
+export interface IncidentCandidate {
+  report: string
+  language: string
+  incident_type: Quoted<import('../types').IncidentType> | null
+  location_text: Quoted<string> | null
+  people_count: Quoted<number> | null
+  needs: { resource_type: import('../types').ResourceType; quantity: number; quote: string }[]
+  signals: { signal: Signal; quote: string }[]
+  severity: import('../types').Severity
+  severity_rule: string
+  geocode: { lat: number; lon: number; name: string; osm: string; kind: string; method: string; score: number } | null
+  dropped: string[]
+}
+
+export interface ConfirmedFields {
+  incident_type: import('../types').IncidentType
+  place: { name: string; lat: number; lon: number }
+  people_count: number | null
+  needs: Partial<Record<import('../types').ResourceType, number>>
+  signals: Signal[]
+}
+
+export interface IntakeReport {
+  id: number
+  received_at: string
+  text: string
+  source: string
+  status: 'unread' | 'needs_review' | 'ready' | 'confirmed' | 'merged' | 'dismissed'
+  candidate: IncidentCandidate | null
+  read_meta: { model: string; prompt_version: string; input_tokens?: number; output_tokens?: number; latency_s?: number; cost_usd?: number } | null
+  review_reasons: string[]
+  suggested_fields: ConfirmedFields | null
+  confirmed_fields: ConfirmedFields | null
+  edited_fields: string[] | null
+  reviewed_by: string | null
+  merged_into: number | null
+  incident_id: string | null
+  exercise_id: string | null
+  duplicates: { id: number; rule: string; text_score: number }[]
+}
+
+export interface PlaceMatch {
+  name: string
+  kind: 'place' | 'landmark' | 'road'
+  lat: number
+  lon: number
+  osm: string
+}

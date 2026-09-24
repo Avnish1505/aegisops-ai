@@ -124,6 +124,30 @@ class Gazetteer:
             encoding="utf-8",
         )
 
+    def search(self, query: str, limit: int = 8) -> list[GazetteerEntry]:
+        """Entries whose name or an alias starts with, then contains, the query (for a picker).
+        Places rank before landmarks before roads; one result per entry."""
+        needle = normalise(query)
+        if not needle:
+            return []
+        scored: dict[int, tuple[int, int, str]] = {}
+        for alias, indices in self._index.items():
+            if alias.startswith(needle):
+                rank = 0
+            elif f" {needle}" in f" {alias}":
+                rank = 1
+            elif needle in alias:
+                rank = 2
+            else:
+                continue
+            for index in indices:
+                entry = self.entries[index]
+                key = (rank, KIND_RANK[entry.kind], entry.name)
+                if index not in scored or key < scored[index]:
+                    scored[index] = key
+        ordered = sorted(scored, key=lambda i: scored[i])
+        return [self.entries[i] for i in ordered[:limit]]
+
     def _best(self, indices: list[int]) -> GazetteerEntry:
         return min(
             (self.entries[i] for i in indices), key=lambda e: (KIND_RANK[e.kind], e.osm)
