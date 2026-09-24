@@ -6,6 +6,7 @@ import {
   createRouter,
 } from '@tanstack/react-router'
 import { lazy } from 'react'
+import { Audit } from './features/audit/Audit'
 import { OpsBoard } from './features/ops/OpsBoard'
 import { PlanReview } from './features/plan/PlanReview'
 import { Triage } from './features/triage/Triage'
@@ -59,7 +60,10 @@ const auditRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/audit/$decisionId',
   params: decisionIdParams,
-  component: () => <Pending title="Audit" />,
+  component: function AuditRoute() {
+    const { decisionId } = auditRoute.useParams()
+    return <Audit decisionId={decisionId} />
+  },
 })
 
 const evalsRoute = createRoute({

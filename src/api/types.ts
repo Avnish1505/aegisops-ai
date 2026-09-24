@@ -190,3 +190,10 @@ export interface PlaceMatch {
   lon: number
   osm: string
 }
+
+export interface ChainReport {
+  ok: boolean
+  events_checked: number
+  head_hash: string
+  first_broken: { event_id: number; reason: string } | null
+}

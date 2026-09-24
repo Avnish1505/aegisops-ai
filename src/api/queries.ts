@@ -6,6 +6,7 @@ import type {
   AlertSummary,
   AuditEvent,
   Baseline,
+  ChainReport,
   ConfirmedFields,
   IntakeReport,
   PlaceMatch,
@@ -176,7 +177,10 @@ export function useReverify(decisionId: number) {
   const client = useQueryClient()
   return useMutation({
     mutationFn: () => api<Reverification>(`/api/v1/decisions/${decisionId}/reverify`, { method: 'POST' }),
-    onSuccess: () => void client.invalidateQueries({ queryKey: ['events'] }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['events'] })
+      void client.invalidateQueries({ queryKey: ['chain'] })
+    },
   })
 }
 
@@ -242,4 +246,8 @@ export function usePlaceSearch(query: string) {
     enabled: query.trim().length >= 2,
     staleTime: Infinity,
   })
+}
+
+export function useChain() {
+  return useQuery({ queryKey: ['chain'], queryFn: () => api<ChainReport>('/api/v1/audit/verify') })
 }

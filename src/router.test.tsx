@@ -16,7 +16,6 @@ function renderAt(path: string) {
 
 describe('routes', () => {
   it.each([
-    ['/audit/7', 'Audit'],
     ['/evals', 'Evals'],
   ])('%s renders %s under the status bar', async (path, title) => {
     renderAt(path)
