@@ -1,0 +1,84 @@
+/* Generated from src/design/tokens.ts; tokens.test.ts fails if the two disagree.
+   Dark is the default; light follows the OS unless the user picked a theme (data-theme). */
+
+:root {
+  color-scheme: dark;
+  --bg: #1C1F23;
+  --surface: #24282D;
+  --raised: #2C3137;
+  --divider: #3A4047;
+  --control-border: #7A828B;
+  --text: #E4E7EA;
+  --muted: #A7AEB6;
+  --critical: #FF6B6B;
+  --high: #F5B041;
+  --blocked: #F17CF1;
+  --focus: #7FB2FF;
+  --on-alarm: #1C1F23;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+    --bg: #DCDEE1;
+    --surface: #EEEFF1;
+    --raised: #FFFFFF;
+    --divider: #C3C7CC;
+    --control-border: #6B7279;
+    --text: #15181B;
+    --muted: #4A5057;
+    --critical: #B3261E;
+    --high: #8A5300;
+    --blocked: #9C1F99;
+    --focus: #1F5FBF;
+    --on-alarm: #FFFFFF;
+  }
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #DCDEE1;
+  --surface: #EEEFF1;
+  --raised: #FFFFFF;
+  --divider: #C3C7CC;
+  --control-border: #6B7279;
+  --text: #15181B;
+  --muted: #4A5057;
+  --critical: #B3261E;
+  --high: #8A5300;
+  --blocked: #9C1F99;
+  --focus: #1F5FBF;
+  --on-alarm: #FFFFFF;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-divider: var(--divider);
+  --color-control-border: var(--control-border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-critical: var(--critical);
+  --color-high: var(--high);
+  --color-blocked: var(--blocked);
+  --color-focus: var(--focus);
+  --color-on-alarm: var(--on-alarm);
+
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --text-xs: 11px;
+  --text-xs--line-height: 16px;
+  --text-sm: 12px;
+  --text-sm--line-height: 16px;
+  --text-base: 13px;
+  --text-base--line-height: 18px;
+  --text-md: 15px;
+  --text-md--line-height: 20px;
+  --text-lg: 18px;
+  --text-lg--line-height: 24px;
+
+  --radius-sm: 2px;
+  --radius: 4px;
+}
