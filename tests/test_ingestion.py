@@ -290,3 +290,26 @@ def test_alerts_api_returns_summaries_without_raw_payloads(database: str) -> Non
     assert {alert["source"] for alert in floods} == {"gdacs"}
     usgs = next(a for a in everything if a["identifier"] == "aka2026swllkm")
     assert usgs["location"] == {"lat": 61.918, "lon": -151.189}
+
+
+def test_every_poll_is_recorded_and_drives_feed_health(database: str) -> None:
+    from auth_helpers import bearer
+
+    from backend.db.models import FeedPoll
+
+    feeds = Feeds({"rss_india.xml": httpx.Response(503)})
+    _poller(database, feeds).poll_all()
+    client = TestClient(create_app(Settings(environment="test", database_url=database)),
+                        headers=bearer())
+
+    with Session(create_engine(database)) as session:
+        polls = {p.source: p for p in session.scalars(select(FeedPoll))}
+    health = {f["source"]: f for f in client.get("/api/v1/status").json()["feeds"]}
+
+    assert (polls["sachet"].ok, polls["usgs"].ok, polls["usgs"].inserted) == (False, True, 4)
+    assert "HTTPStatusError" in (polls["sachet"].error or "")
+    assert health["sachet"]["state"] == "failing"
+    assert health["sachet"]["last_error"] == polls["sachet"].error
+    # The fixed poll clock is 2026-09-23 13:00 UTC, long before "now": USGS is stale.
+    assert health["usgs"]["state"] == "stale"
+    assert health["usgs"]["last_ok_at"] == "2026-09-23T13:00:00+00:00"

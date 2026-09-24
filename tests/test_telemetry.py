@@ -8,7 +8,7 @@ import json
 
 import httpx2
 import pytest
-from auth_helpers import bearer
+from auth_helpers import APPROVE, REJECT, bearer
 from fastapi.testclient import TestClient
 from opentelemetry import trace
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
@@ -85,7 +85,7 @@ def test_read_plan_verify_decide_and_communicate_share_one_trace(
     ).json()
     decision_id = decision["decision_id"]
     approver.post(f"/api/v1/decisions/{decision_id}/disposition",
-                  json={"action": "reject", "reason": "trace test"})
+                  json={**REJECT, "reason": "trace test"})
     operator.post(f"/api/v1/decisions/{decision_id}/drafts")
 
     assert read.headers["traceparent"] == traceparent
@@ -126,7 +126,7 @@ def test_refused_self_approval_is_recorded_as_an_error_span(
     decision_id = alice.post("/api/v1/decisions", json={"seed": 3}).json()["decision_id"]
 
     response = alice.post(f"/api/v1/decisions/{decision_id}/disposition",
-                          json={"action": "approve", "reason": "mine"})
+                          json={**APPROVE, "reason": "mine"})
 
     decide = next(s for s in exporter.get_finished_spans() if s.name == "aegisops.decide")
     assert response.status_code == 409

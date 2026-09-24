@@ -26,14 +26,17 @@ from aegisops.api.auth import (
     require_operator,
     require_viewer,
 )
+from aegisops.api.console import TicketBook, alert_areas, console_router
+from aegisops.api.demo import DemoClock, demo_router, start_reset_schedule
+from aegisops.api.intake_api import intake_router
 from aegisops.api.schemas import (
     DecisionDispositionRequest,
     DevTokenRequest,
     ErrorResponse,
-    ReadReportRequest,
     ScenarioDecisionRequest,
     TranslateNoteRequest,
 )
+from aegisops.api.study_api import study_router
 from aegisops.application.decision_service import DecisionService
 from aegisops.application.roles import UserRole
 from aegisops.application.scenario_service import generate_scenario
@@ -48,18 +51,20 @@ from aegisops.core.config import Settings
 from aegisops.core.logging import configure_logging, request_id_var
 from aegisops.domain.canonical import sha256_hex
 from aegisops.domain.models import DecisionResult, Scenario
+from aegisops.geodata.labels import Labeller
 from aegisops.infrastructure.decision_store import record_decision, serialize_decision
 from aegisops.infrastructure.llm_decision_engine import LLMDecisionEngine
 from aegisops.infrastructure.retrieval_engine import RetrievalEngine
 from aegisops.infrastructure.rule_based_engine import RuleBasedDecisionEngine
 from aegisops.intake.constraints import ConstraintTranslator
 from aegisops.intake.gazetteer import DEFAULT_GAZETTEER, Gazetteer
-from aegisops.intake.reader import Reader, to_incident
+from aegisops.intake.reader import Reader
 from aegisops.llm.client import LLMClient, LLMError, LLMOutputError
-from aegisops.planning.osrm import OSRMProvider
-from aegisops.planning.travel import StraightLineProvider, TravelTimeMatrix, TravelTimeProvider
+from aegisops.planning.providers import default_travel_provider
+from aegisops.planning.travel import TravelTimeMatrix, TravelTimeProvider
 from aegisops.telemetry import configure_tracing, current_traceparent, step_span
 from backend.db.models import Alert, Approval, Base, Decision, Exercise, User
+from backend.demo_reset import reset_demo
 
 logger = logging.getLogger(__name__)
 
@@ -156,8 +161,16 @@ def create_app(
         return JSONResponse(
             status_code=HTTP_422_UNPROCESSABLE_CONTENT,
             content=ErrorResponse(
-                detail="Request validation failed.", request_id=request_id
-            ).model_dump(),
+                detail="Request validation failed.",
+                request_id=request_id,
+                errors=[
+                    {
+                        "loc": [str(part) for part in error.get("loc", ())],
+                        "message": str(error.get("msg", "")).removeprefix("Value error, "),
+                    }
+                    for error in exc.errors()
+                ],
+            ).model_dump(exclude_none=True),
         )
 
     @app.exception_handler(Exception)
@@ -172,6 +185,7 @@ def create_app(
         )
 
     llm = llm_client or LLMClient(active_settings)
+    travel = travel_provider or default_travel_provider(active_settings)
     decision_service = DecisionService(
         {
             "rule_based": RuleBasedDecisionEngine(),
@@ -179,10 +193,20 @@ def create_app(
                 RetrievalEngine(active_settings.knowledge_base_path), llm=llm
             ),
         },
-        travel_provider or _default_travel_provider(active_settings),
+        travel,
     )
 
     gazetteer = Gazetteer.load(DEFAULT_GAZETTEER)
+    demo_clock = (
+        DemoClock(active_settings.demo_reset_interval_min)
+        if active_settings.environment == "demo" else None
+    )
+    app.include_router(
+        console_router(
+            session_factory, active_settings, llm, TicketBook(), Labeller(gazetteer), travel,
+            demo=demo_clock,
+        )
+    )
     reader = Reader(llm, gazetteer)
     translator = ConstraintTranslator(llm, gazetteer)
     reporter = Reporter(llm)
@@ -194,41 +218,8 @@ def create_app(
                 detail="No LLM is configured (set AEGISOPS_LLM_API_KEY).",
             )
 
-    @app.post("/api/v1/intake/read", tags=["intake"])
-    async def read_report(
-        request: Request,
-        response: Response,
-        request_body: ReadReportRequest,
-        principal: Annotated[Principal, Depends(require_operator)],
-    ) -> dict[str, object]:
-        """Free-text report -> grounded incident candidate (nothing is planned or stored)."""
-        del principal
-        require_llm()
-        with step_span("read") as span:
-            try:
-                result = reader.read(request_body.report)
-            except (LLMError, LLMOutputError) as error:
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Reader failed: {error}"
-                ) from error
-            span.set_attribute("aegisops.fields_dropped", len(result.candidate.dropped))
-            traceparent = current_traceparent()
-        incident = to_incident(result.candidate, "INC-preview")
-        if traceparent:
-            response.headers["traceparent"] = traceparent
-        return {
-            "traceparent": traceparent,
-            "candidate": result.candidate.model_dump(mode="json"),
-            "incident_preview": incident.model_dump(mode="json") if incident else None,
-            "llm": {
-                "model": result.record.model,
-                "prompt_version": result.record.prompt_version,
-                "input_tokens": result.record.input_tokens,
-                "output_tokens": result.record.output_tokens,
-                "latency_s": round(result.record.latency_s, 3),
-                "cost_usd": result.record.cost_usd,
-            },
-        }
+    app.include_router(intake_router(session_factory, reader, require_llm))
+    app.include_router(study_router(session_factory, travel))
 
     @app.post("/api/v1/constraints/translate", tags=["intake"])
     async def translate_constraint(
@@ -295,6 +286,7 @@ def create_app(
                         if alert.location
                         else None
                     ),
+                    "areas": alert_areas(alert.parsed),
                 }
                 for alert in session.scalars(query.limit(limit))
             ]
@@ -345,6 +337,10 @@ def create_app(
                 decision = record_decision(
                     session, scenario, outcome, proposer=principal.sub,
                     trace_parent=current_traceparent(),
+                    constraint_sources=[
+                        source.model_dump() if source else None
+                        for source in request_body.constraint_sources
+                    ],
                 )
                 span.set_attributes({"aegisops.decision_id": decision.id,
                                      "aegisops.status": decision.status})
@@ -465,6 +461,7 @@ def create_app(
                     decision_id=decision.id,
                     user_id=actor.id,
                     approved=approving,
+                    reason_code=request_body.reason_code,
                 )
                 session.add(approval)
                 session.flush()
@@ -476,6 +473,7 @@ def create_app(
                         "decision_id": decision.id,
                         "approval_id": approval.id,
                         "action": request_body.action,
+                        "reason_code": request_body.reason_code,
                         "reason": request_body.reason,
                         "record": record_ref(
                             "approvals", approval.id, approval_record_sha256(approval)
@@ -486,8 +484,14 @@ def create_app(
                     "decision_id": decision.id,
                     "disposition_id": approval.id,
                     "action": request_body.action,
+                    "reason_code": request_body.reason_code,
                     "timestamp": event.ts,
                 }
+
+    if active_settings.environment == "demo":
+        app.include_router(demo_router(active_settings, limiter.limit(active_settings.rate_limit)))
+        if demo_clock is not None and active_settings.demo_reset_interval_min > 0:
+            app.state.demo_scheduler = start_reset_schedule(active_settings, demo_clock, reset_demo)
 
     if active_settings.environment == "development":
 
@@ -514,8 +518,3 @@ def create_app(
 
     return app
 
-
-def _default_travel_provider(settings: Settings) -> TravelTimeProvider:
-    if settings.osrm_url:
-        return OSRMProvider(settings.osrm_url, profile=settings.osrm_profile)
-    return StraightLineProvider()

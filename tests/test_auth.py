@@ -5,7 +5,7 @@ from pathlib import Path
 
 import jwt
 import pytest
-from auth_helpers import bearer
+from auth_helpers import APPROVE, REJECT, bearer
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -91,7 +91,7 @@ def test_proposer_cannot_approve_their_own_decision() -> None:
 
     response = client.post(
         f"/api/v1/decisions/{decision_id}/disposition",
-        json={"action": "approve", "reason": "Looks fine to me."},
+        json={**APPROVE, "reason": "Looks fine to me."},
         headers=carol,
     )
 
@@ -105,7 +105,7 @@ def test_a_different_approver_can_approve() -> None:
 
     response = client.post(
         f"/api/v1/decisions/{decision_id}/disposition",
-        json={"action": "approve", "reason": "Second pair of eyes."},
+        json={**APPROVE, "reason": "Second pair of eyes."},
         headers=bearer("dave", "approver"),
     )
 
@@ -120,8 +120,8 @@ def test_operators_can_reject_but_not_approve() -> None:
     decision_id = _approvable_decision(client, bearer("alice", "operator"))
     url = f"/api/v1/decisions/{decision_id}/disposition"
 
-    approve = client.post(url, json={"action": "approve", "reason": "x"}, headers=bearer("op2"))
-    reject = client.post(url, json={"action": "reject", "reason": "x"}, headers=bearer("alice"))
+    approve = client.post(url, json={**APPROVE, "reason": "x"}, headers=bearer("op2"))
+    reject = client.post(url, json={**REJECT, "reason": "x"}, headers=bearer("alice"))
 
     assert approve.status_code == 403
     assert reject.status_code == 200

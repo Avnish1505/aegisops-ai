@@ -75,6 +75,13 @@ class Settings(BaseSettings):
     )
     otel_service_name: str = "aegisops-api"
 
+    # Public demo (AEGISOPS_ENVIRONMENT=demo): a resettable exercise sandbox with fixed identities.
+    demo_reset_interval_min: int = 60
+    demo_token_ttl_s: int = 2 * 60 * 60
+
+    # Committed evaluation outputs (reports/*.json) served to the console's Evals page.
+    reports_dir: Path = REPOSITORY_ROOT / "reports"
+
     # Hazard-feed ingestion (aegisops/ingestion/worker.py).
     ingest_sachet_rss_url: str = "https://sachet.ndma.gov.in/cap_public_website/rss/rss_india.xml"
     ingest_usgs_url: str = (

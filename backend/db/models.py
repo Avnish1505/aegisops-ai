@@ -137,6 +137,8 @@ class Decision(Base):
     verification: Mapped[dict[str, object] | None] = mapped_column(JSON)
     drafts: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
     constraints: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
+    # The operator note (and quote) behind each constraint, parallel to ``constraints``.
+    constraint_sources: Mapped[list[dict[str, object] | None] | None] = mapped_column(JSON)
     travel_times: Mapped[dict[str, object] | None] = mapped_column(JSON)
     objective: Mapped[float | None] = mapped_column()
     reference_objective: Mapped[float | None] = mapped_column()
@@ -163,6 +165,8 @@ class Approval(Base):
     decision_id: Mapped[int] = mapped_column(ForeignKey("decisions.id"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     approved: Mapped[bool] = mapped_column(Boolean)
+    # Required for new dispositions (aegisops/application/dispositions.py); null on older rows.
+    reason_code: Mapped[str | None] = mapped_column(String(64))
     commented_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -260,6 +264,77 @@ class Exercise(Base):
     scenario: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     scenario_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class IntakeReport(Base):
+    """A free-text field report, the model's grounded reading of it, and the operator's review."""
+
+    __tablename__ = "intake_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(String(32), nullable=False)  # operator | demo_seed
+    # unread | needs_review | ready | confirmed | merged | dismissed
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    candidate: Mapped[dict[str, object] | None] = mapped_column(JSON)
+    read_meta: Mapped[dict[str, object] | None] = mapped_column(JSON)  # model, prompt, tokens
+    review_reasons: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    confirmed_fields: Mapped[dict[str, object] | None] = mapped_column(JSON)
+    edited_fields: Mapped[list[str] | None] = mapped_column(JSON)
+    reviewed_by: Mapped[str | None] = mapped_column(String(255))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    merged_into: Mapped[int | None] = mapped_column(ForeignKey("intake_reports.id"))
+    incident_id: Mapped[str | None] = mapped_column(String(64))
+    exercise_id: Mapped[str | None] = mapped_column(String(64))
+
+    __table_args__ = (Index("idx_intake_status", "status"),)
+
+
+class StudySession(Base):
+    """One participant's run of the user study (aegisops/study)."""
+
+    __tablename__ = "study_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    participant: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
+    participant_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class StudyTask(Base):
+    """One task in a session: which interface, which plan, what the right answer is."""
+
+    __tablename__ = "study_tasks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("study_sessions.id"), nullable=False)
+    order: Mapped[int] = mapped_column(Integer, nullable=False)
+    ui: Mapped[str] = mapped_column(String(16), nullable=False)
+    task_key: Mapped[str] = mapped_column(String(8), nullable=False)
+    injected_error: Mapped[str | None] = mapped_column(String(32))
+    expected_action: Mapped[str] = mapped_column(String(16), nullable=False)
+    expected_reason: Mapped[str | None] = mapped_column(String(64))
+    decision_id: Mapped[int] = mapped_column(ForeignKey("decisions.id"), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (Index("idx_study_task_session", "session_id", "order"),)
+
+
+class FeedPoll(Base):
+    """One poll of a hazard feed by the worker, including failures, for feed health."""
+
+    __tablename__ = "feed_polls"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    polled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)
+    fetched: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    inserted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (Index("idx_feed_poll_source_time", "source", "polled_at"),)
 
 
 class Alert(Base):

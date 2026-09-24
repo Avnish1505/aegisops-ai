@@ -32,6 +32,7 @@ from aegisops.ingestion.cap import CapParseError, cap_to_record
 from aegisops.ingestion.feeds import FeedParseError, parse_gdacs, parse_sachet_rss, parse_usgs
 from aegisops.ingestion.models import AlertRecord
 from aegisops.ingestion.store import StoreResult, known_source_refs, store_alerts
+from backend.db.models import FeedPoll
 
 logger = logging.getLogger(__name__)
 
@@ -84,12 +85,22 @@ class Poller:
             result = poll()
         except (httpx.HTTPError, FeedParseError) as error:
             logger.warning("feed_poll_failed source=%s error=%s", source, error)
-            return PollResult(source=source, error=f"{type(error).__name__}: {error}")
-        logger.info(
-            "feed_polled source=%s fetched=%d inserted=%d duplicates=%d invalid=%d",
-            source, result.fetched, result.inserted, result.duplicates, result.invalid,
-        )
+            result = PollResult(source=source, error=f"{type(error).__name__}: {error}")
+        else:
+            logger.info(
+                "feed_polled source=%s fetched=%d inserted=%d duplicates=%d invalid=%d",
+                source, result.fetched, result.inserted, result.duplicates, result.invalid,
+            )
+        self._record(result)
         return result
+
+    def _record(self, result: PollResult) -> None:
+        """Every poll, failed or not, is stored so the console can show feed health."""
+        with self._sessions() as session, session.begin():
+            session.add(FeedPoll(
+                source=result.source, polled_at=self._now(), ok=result.error is None,
+                error=result.error, fetched=result.fetched, inserted=result.inserted,
+            ))
 
     def _get(self, url: str) -> bytes:
         response = self._client.get(url)

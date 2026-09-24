@@ -1,0 +1,128 @@
+diff --git a/src/App.tsx b/src/App.tsx
+index 8e19230..2bec71c 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,5 +1,5 @@
+ import { useEffect, useState } from 'react'
+-import { fetchDecision, fetchExercise, fetchExercises, fetchScenario } from './api'
++import { fetchDecision, fetchExercise, fetchExercises, fetchScenario, fetchStoredDecision } from './api'
+ import type { Assignment, Decision, ExerciseSummary, PlanningConstraint, Scenario, SelectedEntity } from './types'
+ import { AppShell } from './components/AppShell'
+ import { ScenarioControl } from './components/ScenarioControl'
+@@ -28,6 +28,18 @@ function App() {
+   const [constraints, setConstraints] = useState<PlanningConstraint[]>([])
+   const [constraintNotes, setConstraintNotes] = useState<string[]>([])
+ 
++  useEffect(() => {
++    // M4 study adapter: ?decision=<id> opens that stored plan, as the new console's /plans/<id> does.
++    const requested = Number(new URLSearchParams(window.location.search).get('decision'))
++    if (!Number.isSafeInteger(requested) || requested <= 0) return
++    fetchStoredDecision(requested)
++      .then((record) => {
++        setScenario(record.scenario)
++        setDecision(record)
++      })
++      .catch((caught) => setError(caught instanceof Error ? caught.message : 'Could not load the plan.'))
++  }, [])
++
+   useEffect(() => {
+     // Saved exercises are optional: a stack without them simply shows none.
+     fetchExercises().then(setExercises).catch(() => setExercises([]))
+diff --git a/src/api.ts b/src/api.ts
+index 4cd5a00..b8737b2 100644
+--- a/src/api.ts
++++ b/src/api.ts
+@@ -119,10 +119,37 @@ export async function submitDisposition(
+   decisionId: number,
+   action: DispositionAction,
+   reason: string,
++  reasonCode: string,
+ ): Promise<DispositionResult> {
+   return request<DispositionResult>(`/api/v1/decisions/${decisionId}/disposition`, {
+     method: 'POST',
+     headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+-    body: JSON.stringify({ action, reason }),
++    body: JSON.stringify({ action, reason, reason_code: reasonCode }),
++  })
++}
++
++// --- M4 user-study adapter (study/legacy/legacy-adapter.patch) ---------------------------------
++// The API now requires a reason code on every disposition (added after this UI), and the study
++// opens a stored plan by id. Nothing else about this UI is changed.
++
++/** Reason codes accepted by POST /disposition, as served by GET /api/v1/reason-codes. */
++export const REASON_CODES: { value: string; action: DispositionAction; label: string }[] = [
++  { value: 'reviewed_as_proposed', action: 'approve', label: 'Approve: reviewed, right as proposed' },
++  { value: 'accepted_with_known_shortfall', action: 'approve', label: 'Approve: shortfall understood' },
++  { value: 'time_critical', action: 'approve', label: 'Approve: time-critical' },
++  { value: 'eta_incorrect', action: 'reject', label: 'Reject: an ETA is wrong' },
++  { value: 'unit_unavailable_or_unknown', action: 'reject', label: 'Reject: a unit is unavailable or does not exist' },
++  { value: 'incident_missing_or_wrong', action: 'reject', label: 'Reject: an incident is missing or wrong' },
++  { value: 'constraint_not_honoured', action: 'reject', label: 'Reject: a constraint is not honoured' },
++  { value: 'sitrep_numbers_wrong', action: 'reject', label: 'Reject: SITREP numbers do not match the plan' },
++  { value: 'better_plan_needed', action: 'reject', label: 'Reject: a better allocation is needed' },
++  { value: 'situation_changed', action: 'reject', label: 'Reject: the situation has changed' },
++  { value: 'other', action: 'reject', label: 'Reject: other (explain in the reason)' },
++]
++
++/** A stored plan (GET /api/v1/decisions/{id}); the same shape POST /decisions returns. */
++export async function fetchStoredDecision(decisionId: number): Promise<Decision & { scenario: Scenario }> {
++  return request<Decision & { scenario: Scenario }>(`/api/v1/decisions/${decisionId}`, {
++    headers: { ...(await authHeaders()) },
+   })
+ }
+diff --git a/src/components/ResultsPanel.tsx b/src/components/ResultsPanel.tsx
+index bf0ea56..d6823f4 100644
+--- a/src/components/ResultsPanel.tsx
++++ b/src/components/ResultsPanel.tsx
+@@ -1,5 +1,5 @@
+ import { useState } from 'react'
+-import { submitDisposition } from '../api'
++import { REASON_CODES, submitDisposition } from '../api'
+ import type { Assignment, Decision, DispositionResult } from '../types'
+ import { humanize, shortId } from '../lib/format'
+ import { Panel } from './Panel'
+@@ -22,6 +22,7 @@ export function ResultsPanel({ decision, onActiveAssignment }: ResultsPanelProps
+   const [pinnedAssignment, setPinnedAssignment] = useState<Assignment | null>(null)
+   const [disposition, setDisposition] = useState<DispositionResult | null>(null)
+   const [reason, setReason] = useState('')
++  const [reasonCode, setReasonCode] = useState('')
+   const [isSubmitting, setIsSubmitting] = useState(false)
+   const [submitError, setSubmitError] = useState<string | null>(null)
+   const isBlocked = decision.status === 'blocked'
+@@ -41,10 +42,14 @@ export function ResultsPanel({ decision, onActiveAssignment }: ResultsPanelProps
+       setSubmitError('Enter a reason before recording a disposition.')
+       return
+     }
++    if (REASON_CODES.find((code) => code.value === reasonCode)?.action !== action) {
++      setSubmitError(`Choose a reason code for "${action}".`)
++      return
++    }
+     setSubmitError(null)
+     setIsSubmitting(true)
+     try {
+-      setDisposition(await submitDisposition(decision.decision_id, action, reason.trim()))
++      setDisposition(await submitDisposition(decision.decision_id, action, reason.trim(), reasonCode))
+     } catch (caught) {
+       setSubmitError(caught instanceof Error ? caught.message : 'Could not record the disposition.')
+     } finally {
+@@ -243,6 +248,19 @@ export function ResultsPanel({ decision, onActiveAssignment }: ResultsPanelProps
+           ) : (
+             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-start">
+               <div>
++                <label className="sr-only" htmlFor="disposition-reason-code">Reason code</label>
++                <select
++                  id="disposition-reason-code"
++                  value={reasonCode}
++                  onChange={(event) => setReasonCode(event.target.value)}
++                  disabled={isSubmitting}
++                  className="mb-2 w-full border border-ink-300 bg-paper-sunken px-3 py-2 text-sm text-ink-800 sm:w-64"
++                >
++                  <option value="">Reason code (required)</option>
++                  {REASON_CODES.map((code) => (
++                    <option key={code.value} value={code.value}>{code.label}</option>
++                  ))}
++                </select>
+                 <label className="sr-only" htmlFor="disposition-reason">Reason for this disposition</label>
+                 <input
+                   id="disposition-reason"

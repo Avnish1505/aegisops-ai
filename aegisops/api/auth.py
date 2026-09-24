@@ -68,7 +68,8 @@ def _role_from(claim: object) -> UserRole:
 def issue_dev_token(
     settings: Settings, sub: str, role: UserRole, ttl_s: int | None = None
 ) -> str:
-    """Mint an HS256 token signed with the development key. Never exposed outside development."""
+    """Mint an HS256 token signed with the configured secret. Served only by the development
+    sign-in (any subject and role) and the demo's two fixed identities (aegisops/api/demo.py)."""
     if settings.jwt_algorithm != "HS256":
         raise ValueError("development tokens are HS256 only")
     now = int(time.time())
