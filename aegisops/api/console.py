@@ -18,6 +18,7 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -187,6 +188,34 @@ def alert_areas(parsed: dict[str, Any]) -> list[dict[str, Any]]:
     return areas
 
 
+REPORT_KINDS = {
+    "fault_injection": "fault_injection.json",
+    "eval": "eval_*.json",
+    "llm_vs_solver": "llm_vs_solver.json",
+    "user_study": "user_study.json",
+}
+
+
+def read_reports(directory: Path) -> dict[str, Any]:
+    found: dict[str, Any] = {}
+    for kind, pattern in REPORT_KINDS.items():
+        files = sorted(directory.glob(pattern))  # eval_<YYYY-MM-DD>.json sorts by date
+        found[kind] = (
+            {"file": f"reports/{files[-1].name}", "data": json.loads(files[-1].read_text("utf-8"))}
+            if files else None
+        )
+    superseded = []
+    for path in sorted(directory.glob("*.json")):
+        try:
+            data = json.loads(path.read_text("utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict) and "_superseded" in data:
+            superseded.append({"file": f"reports/{path.name}", "note": data["_superseded"]})
+    found["superseded"] = superseded
+    return found
+
+
 # --- Stream -----------------------------------------------------------------------------------
 Message = tuple[str, str, dict[str, Any]]  # (sse id, sse event name, data)
 
@@ -279,6 +308,11 @@ def console_router(
     stream_poll_s: float = 1.0,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
+
+    @router.get("/reports", tags=["console"])
+    def reports() -> dict[str, Any]:
+        """The newest committed report of each kind (reports/*.json), and superseded ones."""
+        return read_reports(settings.reports_dir)
 
     @router.get("/reason-codes", tags=["decisions"])
     def reason_codes() -> dict[str, dict[str, str]]:

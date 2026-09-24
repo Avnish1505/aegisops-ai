@@ -21,6 +21,7 @@ COPY aegisops ./aegisops
 COPY backend ./backend
 COPY knowledge ./knowledge
 COPY scripts ./scripts
+COPY reports ./reports
 
 # Create a non-root user
 RUN useradd --create-home --uid 10001 appuser

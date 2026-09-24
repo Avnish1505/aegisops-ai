@@ -243,3 +243,28 @@ def test_alert_areas_keep_cap_polygons_and_circles() -> None:
     assert areas and areas[0]["polygons"] and areas[0]["circles"]
     lat, lon = areas[0]["polygons"][0][0]
     assert 20 < lat < 30 and 75 < lon < 85  # CAP order is lat,lon; Lucknow is ~26.8 N, 80.9 E
+
+
+def test_reports_serves_the_newest_of_each_kind_and_lists_superseded(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    import json
+
+    (tmp_path / "fault_injection.json").write_text(json.dumps({"faults_caught": 650}))
+    (tmp_path / "eval_2026-09-01.json").write_text(json.dumps({"meta": {"date": "2026-09-01"}}))
+    (tmp_path / "eval_2026-09-24.json").write_text(json.dumps({"meta": {"date": "2026-09-24"}}))
+    (tmp_path / "old.json").write_text(json.dumps({"_superseded": "keyless run"}))
+    client = TestClient(create_app(Settings(environment="test", database_url="sqlite://",
+                                            reports_dir=tmp_path)))
+
+    body = client.get("/api/v1/reports").json()
+
+    assert body["fault_injection"]["data"] == {"faults_caught": 650}
+    assert body["eval"]["file"] == "reports/eval_2026-09-24.json"
+    assert body["llm_vs_solver"] is None and body["user_study"] is None
+    assert body["superseded"] == [{"file": "reports/old.json", "note": "keyless run"}]
+
+
+def test_committed_reports_are_readable() -> None:
+    body = _app().get("/api/v1/reports").json()
+
+    assert body["fault_injection"]["data"]["faults_caught"] == 650
+    assert any(s["file"] == "reports/phase_4_experiment_report.json" for s in body["superseded"])

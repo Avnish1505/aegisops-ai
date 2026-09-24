@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     )
     otel_service_name: str = "aegisops-api"
 
+    # Committed evaluation outputs (reports/*.json) served to the console's Evals page.
+    reports_dir: Path = REPOSITORY_ROOT / "reports"
+
     # Hazard-feed ingestion (aegisops/ingestion/worker.py).
     ingest_sachet_rss_url: str = "https://sachet.ndma.gov.in/cap_public_website/rss/rss_india.xml"
     ingest_usgs_url: str = (

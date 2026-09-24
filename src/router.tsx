@@ -7,11 +7,11 @@ import {
 } from '@tanstack/react-router'
 import { lazy } from 'react'
 import { Audit } from './features/audit/Audit'
+import { Evals } from './features/evals/Evals'
 import { OpsBoard } from './features/ops/OpsBoard'
 import { PlanReview } from './features/plan/PlanReview'
 import { Triage } from './features/triage/Triage'
 import { NotFound, RootLayout } from './components/shell/RootLayout'
-import { Pending } from './routes/Pending'
 
 export interface RouterContext {
   queryClient: QueryClient
@@ -69,7 +69,7 @@ const auditRoute = createRoute({
 const evalsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/evals',
-  component: () => <Pending title="Evals" />,
+  component: Evals,
 })
 
 const routeTree = rootRoute.addChildren([opsRoute, planRoute, triageRoute, auditRoute, evalsRoute])

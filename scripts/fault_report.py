@@ -1,7 +1,7 @@
-"""Run the fault-injection corpus and write reports/fault_injection.md.
+"""Run the fault-injection corpus and write reports/fault_injection.md and .json.
 
     python scripts/fault_report.py           # regenerate the report
-    python scripts/fault_report.py --check   # exit 1 if the committed report is stale
+    python scripts/fault_report.py --check   # exit 1 if either committed file is stale
 
 The output is deterministic (no timestamps or timings), so CI can check it.
 """
@@ -9,6 +9,7 @@ The output is deterministic (no timestamps or timings), so CI can check it.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from collections import Counter
 from pathlib import Path
@@ -21,15 +22,22 @@ from tests.fault_injection.corpus import SEEDS, clean_case  # noqa: E402
 from tests.fault_injection.mutators import MUTATORS  # noqa: E402
 
 OUTPUT = ROOT / "reports" / "fault_injection.md"
+OUTPUT_JSON = OUTPUT.with_suffix(".json")
 
 
 def build_report() -> str:
+    return build()[0]
+
+
+def build() -> tuple[str, str]:
+    """The Markdown report and the same numbers as JSON (for the console's Evals page)."""
     clean_reports = [clean_case(seed).verify() for seed in SEEDS]
     false_blocks = sum(bool(report.blocking_check_ids) for report in clean_reports)
     clean_flags = sum(bool(report.failed()) for report in clean_reports)
     gate_blocks = sum(report.safety_gate_blocked for report in clean_reports)
 
     rows: list[str] = []
+    classes: list[dict[str, object]] = []
     classes_caught = 0
     total_caught = 0
     for mutator in MUTATORS:
@@ -44,6 +52,13 @@ def build_report() -> str:
         classes_caught += caught == len(SEEDS)
         total_caught += caught
         others = ", ".join(f"`{name}` ({count})" for name, count in sorted(collateral.items()))
+        classes.append({
+            "name": mutator.name, "description": mutator.description,
+            "expected_check": mutator.expected_check,
+            "severity": mutator.expected_severity.value,
+            "caught": caught, "blocked": blocked, "scenarios": len(SEEDS),
+            "collateral": dict(sorted(collateral.items())),
+        })
         rows.append(
             f"| {mutator.name} | {mutator.description} | `{mutator.expected_check}` | "
             f"{mutator.expected_severity.value} | {caught}/{len(SEEDS)} | "
@@ -52,7 +67,16 @@ def build_report() -> str:
 
     n = len(SEEDS)
     flag_only = [m.name for m in MUTATORS if m.expected_severity != CheckSeverity.CRITICAL]
-    return "\n".join(
+    summary = {
+        "report": "fault_injection",
+        "source": "scripts/fault_report.py over tests/fault_injection/",
+        "classes_caught": classes_caught, "classes": len(MUTATORS),
+        "faults_caught": total_caught, "faults": len(MUTATORS) * n,
+        "clean_scenarios": n, "clean_false_blocks": false_blocks,
+        "clean_with_failed_check": clean_flags, "clean_safety_gate_blocks": gate_blocks,
+        "per_class": classes,
+    }
+    markdown = "\n".join(
         [
             "# Fault-injection report",
             "",
@@ -100,22 +124,25 @@ def build_report() -> str:
             "",
         ]
     )
+    return markdown, json.dumps(summary, indent=1, sort_keys=True) + "\n"
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="Fail if the report is stale.")
     args = parser.parse_args()
-    report = build_report()
+    outputs = dict(zip((OUTPUT, OUTPUT_JSON), build(), strict=True))
     if args.check:
-        current = OUTPUT.read_text(encoding="utf-8") if OUTPUT.exists() else ""
-        if current != report:
-            sys.exit(f"{OUTPUT.relative_to(ROOT)} is stale; run python scripts/fault_report.py")
-        print(f"{OUTPUT.relative_to(ROOT)} is up to date.")
+        for path, content in outputs.items():
+            current = path.read_text(encoding="utf-8") if path.exists() else ""
+            if current != content:
+                sys.exit(f"{path.relative_to(ROOT)} is stale; run python scripts/fault_report.py")
+        print("reports/fault_injection.md and .json are up to date.")
         return
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(report, encoding="utf-8")
-    print(f"Wrote {OUTPUT.relative_to(ROOT)}")
+    for path, content in outputs.items():
+        path.write_text(content, encoding="utf-8")
+        print(f"Wrote {path.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
