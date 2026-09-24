@@ -158,8 +158,16 @@ def create_app(
         return JSONResponse(
             status_code=HTTP_422_UNPROCESSABLE_CONTENT,
             content=ErrorResponse(
-                detail="Request validation failed.", request_id=request_id
-            ).model_dump(),
+                detail="Request validation failed.",
+                request_id=request_id,
+                errors=[
+                    {
+                        "loc": [str(part) for part in error.get("loc", ())],
+                        "message": str(error.get("msg", "")).removeprefix("Value error, "),
+                    }
+                    for error in exc.errors()
+                ],
+            ).model_dump(exclude_none=True),
         )
 
     @app.exception_handler(Exception)
@@ -474,6 +482,7 @@ def create_app(
                     decision_id=decision.id,
                     user_id=actor.id,
                     approved=approving,
+                    reason_code=request_body.reason_code,
                 )
                 session.add(approval)
                 session.flush()
@@ -485,6 +494,7 @@ def create_app(
                         "decision_id": decision.id,
                         "approval_id": approval.id,
                         "action": request_body.action,
+                        "reason_code": request_body.reason_code,
                         "reason": request_body.reason,
                         "record": record_ref(
                             "approvals", approval.id, approval_record_sha256(approval)
@@ -495,6 +505,7 @@ def create_app(
                     "decision_id": decision.id,
                     "disposition_id": approval.id,
                     "action": request_body.action,
+                    "reason_code": request_body.reason_code,
                     "timestamp": event.ts,
                 }
 

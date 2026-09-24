@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from auth_helpers import bearer
+from auth_helpers import APPROVE, bearer
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
@@ -88,7 +88,7 @@ def test_api_decision_approval_and_audit_chain_on_postgres(migrated: str) -> Non
 
     approved = client.post(
         f"/api/v1/decisions/{decision['decision_id']}/disposition",
-        json={"action": "approve", "reason": "Reviewed on PostGIS."},
+        json={**APPROVE, "reason": "Reviewed on PostGIS."},
         headers=bearer("bob", "approver"),
     )
     chain = client.get("/api/v1/audit/verify").json()

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from aegisops.application.dispositions import reason_problem
 from aegisops.application.roles import UserRole
 from aegisops.domain.models import Scenario
 from aegisops.planning.constraints import PlanningConstraint
@@ -30,7 +31,15 @@ class DecisionDispositionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     action: Literal["approve", "reject"]
-    reason: Annotated[str, Field(min_length=1, max_length=1_000)]
+    reason_code: Annotated[str, Field(min_length=1, max_length=64)]
+    reason: Annotated[str | None, Field(max_length=1_000)] = None
+
+    @model_validator(mode="after")
+    def _reason_code_fits_action(self) -> DecisionDispositionRequest:
+        problem = reason_problem(self.action, self.reason_code, self.reason)
+        if problem:
+            raise ValueError(problem)
+        return self
 
 
 class ErrorResponse(BaseModel):
@@ -38,6 +47,8 @@ class ErrorResponse(BaseModel):
 
     detail: str
     request_id: str | None = None
+    # Validation problems: field location and message only; submitted values are never echoed.
+    errors: list[dict[str, object]] | None = None
 
 
 class DevTokenRequest(BaseModel):

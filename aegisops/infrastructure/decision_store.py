@@ -125,6 +125,7 @@ def serialize_decision(decision: Decision) -> dict[str, object]:
             {
                 "disposition_id": approval.id,
                 "action": "approve" if approval.approved else "reject",
+                "reason_code": approval.reason_code,
                 "actor": approval.user.username,
                 "timestamp": approval.commented_at.isoformat(),
             }

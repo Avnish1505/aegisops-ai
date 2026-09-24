@@ -4,7 +4,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from auth_helpers import bearer
+from auth_helpers import REJECT, bearer
 from fastapi.testclient import TestClient
 
 from aegisops.api.app import create_app
@@ -33,7 +33,7 @@ def test_status_reports_feeds_model_and_pending_approvals() -> None:
     first = client.post("/api/v1/decisions", json={"seed": 3}, headers=operator).json()
     client.post("/api/v1/decisions", json={"seed": 4}, headers=operator)
     client.post(f"/api/v1/decisions/{first['decision_id']}/disposition",
-                json={"action": "reject", "reason": "test"}, headers=approver)
+                json={**REJECT, "reason": "test"}, headers=approver)
 
     body = client.get("/api/v1/status", headers=bearer("v", "viewer")).json()
 

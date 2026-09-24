@@ -26,9 +26,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from aegisops.api.auth import Principal, require_viewer
+from aegisops.application.dispositions import REASONS
+from aegisops.application.replay import baseline, reverify
+from aegisops.audit.event_log import append_event
 from aegisops.core.config import Settings
 from aegisops.domain.models import Scenario
 from aegisops.geodata.labels import Labeller
+from aegisops.infrastructure.decision_store import serialize_decision
 from aegisops.llm.client import LLMClient
 from aegisops.planning.osrm import OSRMProvider
 from aegisops.planning.routes import RouteGeometry, straight_line
@@ -44,6 +48,7 @@ SSE_EVENT_NAMES = {
     "verification_completed": "decision.verified",
     "disposition_recorded": "disposition.recorded",
     "drafts_generated": "drafts.generated",
+    "reverification_run": "decision.reverified",
 }
 
 
@@ -149,6 +154,7 @@ def decision_summary(decision: Decision) -> dict[str, Any]:
         "blocking_check_ids": verification.get("blocking_check_ids", []),
         "disposition": None if last is None else {
             "action": "approve" if last.approved else "reject",
+            "reason_code": last.reason_code,
             "actor": last.user.username,
             "timestamp": _iso(last.commented_at),
         },
@@ -269,6 +275,11 @@ def console_router(
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
 
+    @router.get("/reason-codes", tags=["decisions"])
+    def reason_codes() -> dict[str, dict[str, str]]:
+        """Reason codes required with each disposition, with their display text."""
+        return REASONS
+
     @router.post("/labels", tags=["console"])
     def labels(
         scenario: Scenario, principal: Annotated[Principal, Depends(require_viewer)]
@@ -357,6 +368,39 @@ def console_router(
                            "incident_id": assignment["incident_id"],
                            **geometry.model_dump(mode="json")})
         return routes
+
+    def _record(decision_id: int) -> dict[str, Any]:
+        with session_factory() as session:
+            decision = session.get(Decision, decision_id)
+            if decision is None or decision.scenario is None or decision.travel_times is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                    detail="Decision not found.")
+            return serialize_decision(decision)
+
+    @router.get("/decisions/{decision_id}/baseline", tags=["decisions"])
+    def decision_baseline(
+        decision_id: int, principal: Annotated[Principal, Depends(require_viewer)]
+    ) -> dict[str, Any]:
+        """The solver's plan for the same stored inputs without the operator's constraints."""
+        del principal
+        return baseline(_record(decision_id))
+
+    @router.post("/decisions/{decision_id}/reverify", tags=["audit"])
+    def decision_reverify(
+        decision_id: int, principal: Annotated[Principal, Depends(require_viewer)]
+    ) -> dict[str, Any]:
+        """Run the verifier again on the stored inputs and compare with the stored report.
+        The run itself is recorded in the audit log."""
+        result = reverify(_record(decision_id))
+        with session_factory.begin() as session:
+            event = append_event(session, actor=principal.sub, type="reverification_run", payload={
+                "decision_id": decision_id,
+                "matches": result["matches"],
+                "same_verdict": result["same_verdict"],
+                "differing_checks": result["differing_checks"],
+            })
+            result["event_id"] = event.id
+        return result
 
     @router.get("/events", tags=["audit"])
     def list_events(

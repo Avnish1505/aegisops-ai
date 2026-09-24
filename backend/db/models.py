@@ -163,6 +163,8 @@ class Approval(Base):
     decision_id: Mapped[int] = mapped_column(ForeignKey("decisions.id"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     approved: Mapped[bool] = mapped_column(Boolean)
+    # Required for new dispositions (aegisops/application/dispositions.py); null on older rows.
+    reason_code: Mapped[str | None] = mapped_column(String(64))
     commented_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships
